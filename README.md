@@ -8,15 +8,24 @@
 
 ## Özellikler
 
-- 🤖 **AI Asistan paneli** (`View → AI Assistant`, `Ctrl+Shift+I`)
-  - **Claude** (Anthropic), **OpenAI** ve tüm **OpenAI-uyumlu** servisler: **Ollama**, LM Studio, OpenRouter, Groq...
-  - Yanıtlar canlı akar (streaming)
-  - Seçili kod ya da açık dosya otomatik olarak bağlam olarak gönderilir
-  - **Explain**: seçili kodu tek tıkla açıklatır
-  - **Insert Code**: yanıttaki kodu editöre ekler (seçim varsa onun yerine yazar)
-  - `Ctrl+Enter` ile gönderme, **Stop** ile durdurma, **New Chat** ile sıfırlama
+- 🤖 **Agent modu** (Cursor / Antigravity gibi): AI projeyi kendisi keşfeder, dosyaları okur, düzenler, yeni dosya oluşturur ve komut çalıştırır
+  - Araçlar: `list_files`, `read_file`, `search`, `edit_file`, `write_file`, `run_command`
+  - Her dosya değişikliği önce **renkli diff** olarak gösterilir, **Accept / Reject** ile onaylarsın (istersen *Auto-apply edits* ile otomatik)
+  - Terminal komutları **her zaman** onay ister
+  - AI sadece açık çalışma klasörünün içine erişebilir, dışına yazamaz
+  - Açık dosyalardaki değişiklikler `Ctrl+Z` ile geri alınabilir
+- 💬 **Sohbet modu**: seçili kodu/dosyayı bağlam olarak gönderme, **Explain**, **Insert Code**
+- 🔌 **Claude** (Anthropic), **OpenAI** ve tüm **OpenAI-uyumlu** servisler: **Ollama**, LM Studio, OpenRouter, Groq... Yanıtlar canlı akar
 - 📁 **Dosya yöneticisi** (Folder as Workspace) varsayılan olarak açık
 - ✍️ Notepad++'tan alışık olunan her şey: Scintilla editörü, sözdizimi renklendirme, makrolar, çoklu imleç, arama/değiştirme, Lua betikleri
+
+## Kullanım
+
+1. *File → Open Folder as Workspace* ile proje klasörünü aç
+2. AI panelinde (`View → AI Assistant`, `Ctrl+Shift+I`) **Settings** → sağlayıcı ve API anahtarı
+3. Ne istediğini yaz, `Ctrl+Enter`: *"login formuna e-posta doğrulaması ekle ve testleri çalıştır"*
+
+> Agent modu için araç çağırmayı (tool calling) destekleyen bir model gerekir: Claude, GPT-4o/4.1, Ollama'da `qwen2.5-coder`, `llama3.1` vb.
 
 ## AI Ayarları
 
@@ -52,10 +61,11 @@ Windows/macOS için ayrıntılı talimatlar: [doc/Building.md](doc/Building.md)
 
 ## Yol Haritası
 
-- [ ] Yanıttaki değişiklikleri **diff** olarak gösterip onaylayarak uygulama
+- [x] Agent modu: dosya okuma/yazma, arama ve terminal komutu (onaylı)
+- [x] Değişiklikleri **diff** olarak gösterip onaylayarak uygulama
+- [ ] Checkpoint: agent'ın tüm değişikliklerini tek tıkla geri alma
 - [ ] Satır içi (inline) AI düzenleme: seçimi işaretle → `Ctrl+K` → talimat yaz
 - [ ] Çoklu dosya bağlamı (açık sekmeler / klasör)
-- [ ] Agent modu: dosya okuma/yazma ve terminal komutu çalıştırma (onaylı)
 - [ ] Kod tamamlama (ghost text)
 - [ ] API anahtarını işletim sisteminin anahtar zincirinde saklama
 - [ ] Koyu tema

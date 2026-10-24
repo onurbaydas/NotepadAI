@@ -19,11 +19,13 @@
 
 #include <QDockWidget>
 #include <QJsonArray>
+#include <QJsonObject>
+#include <QMap>
 #include <QPointer>
 
+class AiAgentTools;
 class MainWindow;
 class QCheckBox;
-class QComboBox;
 class QLabel;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -31,8 +33,10 @@ class QPlainTextEdit;
 class QPushButton;
 class QTextBrowser;
 
-// Dockable chat panel that talks to Anthropic (Claude) or any
+// Dockable AI assistant that talks to Anthropic (Claude) or any
 // OpenAI-compatible endpoint (OpenAI, Ollama, LM Studio, OpenRouter...).
+// In agent mode the model can call tools to read, search and edit files
+// in the workspace and run commands, with the user approving changes.
 class AiChatDock : public QDockWidget
 {
     Q_OBJECT
@@ -59,29 +63,53 @@ private:
         QString model;
     };
 
+    struct PendingToolCall {
+        QString id;
+        QString name;
+        QString arguments;  // JSON, streamed in pieces
+    };
+
     Provider loadProvider() const;
     QString buildContext() const;
-    void startRequest(const QString &prompt);
+    QString systemPrompt() const;
+    void addUserMessage(const QString &question);
+    void sendRequest();
+    QJsonArray anthropicMessages() const;
+    QJsonArray openAiMessages() const;
     void handleStreamData();
     void handleStreamLine(const QByteArray &line);
     void requestFinished();
+    void runToolCalls();
     void renderChat();
     void setBusy(bool busy);
 
     MainWindow *window;
+    AiAgentTools *tools;
     QNetworkAccessManager *network;
     QPointer<QNetworkReply> reply;
     QByteArray streamBuffer;
+    QString requestProviderType;
 
     QTextBrowser *chatView;
     QPlainTextEdit *input;
     QCheckBox *includeContext;
+    QCheckBox *agentMode;
+    QCheckBox *autoApprove;
     QPushButton *sendButton;
+    QPushButton *clearButton;
     QPushButton *stopButton;
     QPushButton *insertButton;
     QLabel *statusLabel;
 
-    QJsonArray history;     // [{role, content}, ...]
-    QString pendingAnswer;  // assistant text currently streaming in
+    // Provider-neutral conversation:
+    //   {role: "user", content, display}
+    //   {role: "assistant", content, tool_calls: [{id, name, input}]}
+    //   {role: "tool", tool_call_id, name, content, summary, is_error}
+    QJsonArray history;
+    QString pendingAnswer;
+    QMap<int, PendingToolCall> pendingToolCalls;
     QString lastError;
+    bool stopRequested = false;
+    bool runningTools = false;
+    int agentSteps = 0;
 };

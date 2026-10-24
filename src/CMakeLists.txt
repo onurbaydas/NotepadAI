@@ -52,6 +52,8 @@ qt_add_executable(NotepadNext
 	ZoomEventWatcher.h
 	resources.qrc
 	scripts.qrc
+	AiAgentTools.cpp
+	AiAgentTools.h
 	ApplicationSettings.cpp
 	ColorPickerDelegate.cpp
 	ComboBoxDelegate.cpp

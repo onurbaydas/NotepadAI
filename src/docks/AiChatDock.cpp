@@ -17,6 +17,7 @@
 
 #include "AiChatDock.h"
 
+#include "AiAgentTools.h"
 #include "MainWindow.h"
 #include "ScintillaNext.h"
 
@@ -24,10 +25,10 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QJsonDocument>
-#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -40,18 +41,32 @@
 #include <QScrollBar>
 #include <QSettings>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace {
 
-const char *SYSTEM_PROMPT =
+const char *CHAT_PROMPT =
     "You are a coding assistant embedded in the NotepadAI text editor. "
     "Answer concisely. When you propose code, put it in a single fenced code block "
     "so the user can insert it into the editor with one click. "
     "Reply in the same language the user writes in.";
 
+const char *AGENT_PROMPT =
+    "You are an AI coding agent embedded in the NotepadAI code editor, working in the user's project.\n"
+    "Workspace root: %1\n"
+    "File currently open in the editor: %2\n\n"
+    "Use the tools to explore the project, read files, make changes and run commands. "
+    "Always read a file before editing it. Prefer edit_file with a small, unique old_string over rewriting whole files. "
+    "Paths are relative to the workspace root. Every change is shown to the user as a diff for approval; "
+    "if a change is rejected, ask what they want instead. Do not ask for permission before using tools, just use them. "
+    "When you are done, briefly summarize what you changed. Reply in the same language the user writes in.";
+
 // Keep requests reasonably sized when the whole file is sent as context.
 const int MAX_CONTEXT_CHARS = 60000;
+
+// Upper bound on tool round trips for a single user message.
+const int MAX_AGENT_STEPS = 30;
 
 QString defaultBaseUrl(const QString &type)
 {
@@ -73,15 +88,29 @@ QString lastCodeBlock(const QString &markdown)
     return code;
 }
 
+// Short description of a tool call for the chat, e.g. the path or command.
+QString toolLabel(const QJsonObject &input)
+{
+    for (const char *key : {"path", "command", "pattern"}) {
+        const QString value = input[key].toString();
+        if (!value.isEmpty())
+            return value.left(120);
+    }
+    return QString();
+}
+
 }
 
 AiChatDock::AiChatDock(MainWindow *window) :
     QDockWidget(window),
     window(window),
+    tools(new AiAgentTools(window)),
     network(new QNetworkAccessManager(this))
 {
     setObjectName("AiChatDock");
     setWindowTitle(tr("AI Assistant"));
+
+    QSettings settings;
 
     QWidget *container = new QWidget(this);
     QVBoxLayout *layout = new QVBoxLayout(container);
@@ -91,7 +120,7 @@ AiChatDock::AiChatDock(MainWindow *window) :
     statusLabel = new QLabel(container);
     statusLabel->setStyleSheet("color: gray;");
     QPushButton *settingsButton = new QPushButton(tr("Settings"), container);
-    QPushButton *clearButton = new QPushButton(tr("New Chat"), container);
+    clearButton = new QPushButton(tr("New Chat"), container);
     toolbar->addWidget(statusLabel, 1);
     toolbar->addWidget(clearButton);
     toolbar->addWidget(settingsButton);
@@ -102,15 +131,28 @@ AiChatDock::AiChatDock(MainWindow *window) :
     layout->addWidget(chatView, 1);
 
     input = new QPlainTextEdit(container);
-    input->setPlaceholderText(tr("Ask something... (Ctrl+Enter to send)"));
+    input->setPlaceholderText(tr("Ask something or describe a change... (Ctrl+Enter to send)"));
     input->setMaximumHeight(110);
-    setMinimumWidth(260);
     input->installEventFilter(this);
+    setMinimumWidth(260);
     layout->addWidget(input);
 
-    QHBoxLayout *actions = new QHBoxLayout();
-    includeContext = new QCheckBox(tr("Send selection / current file"), container);
+    QHBoxLayout *options = new QHBoxLayout();
+    agentMode = new QCheckBox(tr("Agent mode"), container);
+    agentMode->setToolTip(tr("Let the AI read, search and edit files in the workspace and run commands"));
+    agentMode->setChecked(settings.value("AI/AgentMode", true).toBool());
+    autoApprove = new QCheckBox(tr("Auto-apply edits"), container);
+    autoApprove->setToolTip(tr("Apply file edits without showing the diff first. Commands always ask."));
+    autoApprove->setChecked(settings.value("AI/AutoApprove", false).toBool());
+    includeContext = new QCheckBox(tr("Send selection / file"), container);
     includeContext->setChecked(true);
+    options->addWidget(agentMode);
+    options->addWidget(autoApprove);
+    options->addWidget(includeContext);
+    options->addStretch(1);
+    layout->addLayout(options);
+
+    QHBoxLayout *actions = new QHBoxLayout();
     QPushButton *explainButton = new QPushButton(tr("Explain"), container);
     explainButton->setToolTip(tr("Explain the selected code"));
     insertButton = new QPushButton(tr("Insert Code"), container);
@@ -118,7 +160,6 @@ AiChatDock::AiChatDock(MainWindow *window) :
     stopButton = new QPushButton(tr("Stop"), container);
     sendButton = new QPushButton(tr("Send"), container);
     sendButton->setDefault(true);
-    layout->addWidget(includeContext);
     actions->addWidget(explainButton);
     actions->addWidget(insertButton);
     actions->addStretch(1);
@@ -134,6 +175,8 @@ AiChatDock::AiChatDock(MainWindow *window) :
     connect(settingsButton, &QPushButton::clicked, this, &AiChatDock::openSettings);
     connect(insertButton, &QPushButton::clicked, this, &AiChatDock::insertLastCodeBlock);
     connect(explainButton, &QPushButton::clicked, this, &AiChatDock::explainSelection);
+    connect(agentMode, &QCheckBox::toggled, this, [](bool checked) { QSettings().setValue("AI/AgentMode", checked); });
+    connect(autoApprove, &QCheckBox::toggled, this, [](bool checked) { QSettings().setValue("AI/AutoApprove", checked); });
 
     setBusy(false);
     renderChat();
@@ -179,7 +222,8 @@ void AiChatDock::openSettings()
     apiKey->setEchoMode(QLineEdit::Password);
     apiKey->setPlaceholderText(tr("Not needed for local Ollama"));
     QLineEdit *model = new QLineEdit(p.model, &dialog);
-    QLabel *hint = new QLabel(tr("Ollama: choose OpenAI-compatible, URL http://localhost:11434/v1, model e.g. qwen2.5-coder"), &dialog);
+    QLabel *hint = new QLabel(tr("Ollama: choose OpenAI-compatible, URL http://localhost:11434/v1, model e.g. qwen2.5-coder. "
+                                 "Agent mode needs a model that supports tool calling."), &dialog);
     hint->setWordWrap(true);
     hint->setStyleSheet("color: gray;");
 
@@ -220,6 +264,9 @@ QString AiChatDock::buildContext() const
     QString text = QString::fromUtf8(editor->getSelText());
     QString kind = "Selected code";
     if (text.isEmpty()) {
+        // In agent mode the model reads files itself
+        if (agentMode->isChecked())
+            return QString();
         text = QString::fromUtf8(editor->getText(editor->textLength() + 1));
         kind = "Current file";
     }
@@ -231,40 +278,146 @@ QString AiChatDock::buildContext() const
     return QString("%1 (%2):\n```\n%3\n```\n\n").arg(kind, editor->getName(), text);
 }
 
+QString AiChatDock::systemPrompt() const
+{
+    if (!agentMode->isChecked())
+        return CHAT_PROMPT;
+
+    const QString root = tools->workspaceRoot();
+    QString currentFile = "(none)";
+    ScintillaNext *editor = window->currentEditor();
+    if (editor) {
+        currentFile = editor->getName();
+        if (editor->isFile() && !root.isEmpty())
+            currentFile = QDir(root).relativeFilePath(editor->getFilePath());
+    }
+
+    QString prompt = QString(AGENT_PROMPT).arg(root.isEmpty() ? "(none)" : root, currentFile);
+    if (root.isEmpty())
+        prompt += "\n\nNo workspace folder is open, so file tools will fail. Tell the user to open one with File > Open Folder as Workspace.";
+    return prompt;
+}
+
 void AiChatDock::sendMessage()
 {
     const QString question = input->toPlainText().trimmed();
-    if (question.isEmpty() || reply)
+    if (question.isEmpty() || reply || runningTools)
         return;
 
     input->clear();
-    startRequest(question);
+    addUserMessage(question);
 }
 
 void AiChatDock::explainSelection()
 {
-    if (reply)
+    if (reply || runningTools)
         return;
-    startRequest(tr("Explain this code."));
+    addUserMessage(tr("Explain this code."));
 }
 
-void AiChatDock::startRequest(const QString &question)
+void AiChatDock::addUserMessage(const QString &question)
 {
     const Provider p = loadProvider();
     if (p.apiKey.isEmpty() && !p.baseUrl.contains("localhost") && !p.baseUrl.contains("127.0.0.1")) {
         openSettings();
-        if (loadProvider().apiKey.isEmpty())
+        if (loadProvider().apiKey.isEmpty()) {
+            input->setPlainText(question);
             return;
-        return startRequest(question);
+        }
     }
 
     QString content = question;
     if (includeContext->isChecked())
         content = buildContext() + question;
 
-    history.append(QJsonObject{{"role", "user"}, {"content", content}});
-    pendingAnswer.clear();
+    history.append(QJsonObject{{"role", "user"}, {"content", content}, {"display", question}});
+    stopRequested = false;
+    agentSteps = 0;
     lastError.clear();
+    sendRequest();
+}
+
+QJsonArray AiChatDock::anthropicMessages() const
+{
+    QJsonArray messages;
+
+    auto append = [&messages](const QString &role, const QJsonObject &block) {
+        // Anthropic wants alternating roles; merge consecutive blocks of the same role
+        if (!messages.isEmpty() && messages.last().toObject()["role"].toString() == role) {
+            QJsonObject last = messages.last().toObject();
+            QJsonArray content = last["content"].toArray();
+            content.append(block);
+            last["content"] = content;
+            messages[messages.size() - 1] = last;
+        }
+        else {
+            messages.append(QJsonObject{{"role", role}, {"content", QJsonArray{block}}});
+        }
+    };
+
+    for (const auto &value : history) {
+        const QJsonObject m = value.toObject();
+        const QString role = m["role"].toString();
+        if (role == "user") {
+            append("user", QJsonObject{{"type", "text"}, {"text", m["content"].toString()}});
+        }
+        else if (role == "assistant") {
+            if (!m["content"].toString().isEmpty())
+                append("assistant", QJsonObject{{"type", "text"}, {"text", m["content"].toString()}});
+            for (const auto &call : m["tool_calls"].toArray()) {
+                const QJsonObject c = call.toObject();
+                append("assistant", QJsonObject{{"type", "tool_use"}, {"id", c["id"]}, {"name", c["name"]}, {"input", c["input"]}});
+            }
+        }
+        else if (role == "tool") {
+            append("user", QJsonObject{{"type", "tool_result"}, {"tool_use_id", m["tool_call_id"]},
+                                       {"content", m["content"]}, {"is_error", m["is_error"].toBool()}});
+        }
+    }
+    return messages;
+}
+
+QJsonArray AiChatDock::openAiMessages() const
+{
+    QJsonArray messages{QJsonObject{{"role", "system"}, {"content", systemPrompt()}}};
+
+    for (const auto &value : history) {
+        const QJsonObject m = value.toObject();
+        const QString role = m["role"].toString();
+        if (role == "user") {
+            messages.append(QJsonObject{{"role", "user"}, {"content", m["content"]}});
+        }
+        else if (role == "assistant") {
+            QJsonObject msg{{"role", "assistant"}, {"content", m["content"]}};
+            QJsonArray calls;
+            for (const auto &call : m["tool_calls"].toArray()) {
+                const QJsonObject c = call.toObject();
+                calls.append(QJsonObject{
+                    {"id", c["id"]},
+                    {"type", "function"},
+                    {"function", QJsonObject{
+                        {"name", c["name"]},
+                        {"arguments", QString::fromUtf8(QJsonDocument(c["input"].toObject()).toJson(QJsonDocument::Compact))}
+                    }}
+                });
+            }
+            if (!calls.isEmpty())
+                msg["tool_calls"] = calls;
+            messages.append(msg);
+        }
+        else if (role == "tool") {
+            messages.append(QJsonObject{{"role", "tool"}, {"tool_call_id", m["tool_call_id"]}, {"content", m["content"]}});
+        }
+    }
+    return messages;
+}
+
+void AiChatDock::sendRequest()
+{
+    const Provider p = loadProvider();
+    requestProviderType = p.type;
+    pendingAnswer.clear();
+    pendingToolCalls.clear();
     streamBuffer.clear();
 
     QJsonObject body;
@@ -277,22 +430,38 @@ void AiChatDock::startRequest(const QString &question)
     while (base.endsWith('/'))
         base.chop(1);
 
+    const QJsonArray toolDefinitions = AiAgentTools::definitions();
+
     if (p.type == "anthropic") {
         request.setUrl(QUrl(base + "/v1/messages"));
         request.setRawHeader("x-api-key", p.apiKey.toUtf8());
         request.setRawHeader("anthropic-version", "2023-06-01");
-        body["max_tokens"] = 8192;
-        body["system"] = SYSTEM_PROMPT;
-        body["messages"] = history;
+        body["max_tokens"] = 16000;
+        body["system"] = systemPrompt();
+        body["messages"] = anthropicMessages();
+        if (agentMode->isChecked()) {
+            QJsonArray defs;
+            for (const auto &t : toolDefinitions) {
+                const QJsonObject o = t.toObject();
+                defs.append(QJsonObject{{"name", o["name"]}, {"description", o["description"]}, {"input_schema", o["schema"]}});
+            }
+            body["tools"] = defs;
+        }
     }
     else {
         request.setUrl(QUrl(base + "/chat/completions"));
         if (!p.apiKey.isEmpty())
             request.setRawHeader("Authorization", "Bearer " + p.apiKey.toUtf8());
-        QJsonArray messages{QJsonObject{{"role", "system"}, {"content", SYSTEM_PROMPT}}};
-        for (const auto &m : history)
-            messages.append(m);
-        body["messages"] = messages;
+        body["messages"] = openAiMessages();
+        if (agentMode->isChecked()) {
+            QJsonArray defs;
+            for (const auto &t : toolDefinitions) {
+                const QJsonObject o = t.toObject();
+                defs.append(QJsonObject{{"type", "function"}, {"function", QJsonObject{
+                    {"name", o["name"]}, {"description", o["description"]}, {"parameters", o["schema"]}}}});
+            }
+            body["tools"] = defs;
+        }
     }
 
     reply = network->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
@@ -334,19 +503,46 @@ void AiChatDock::handleStreamLine(const QByteArray &line)
         return;
 
     const QJsonObject obj = QJsonDocument::fromJson(data).object();
+    const QString type = obj["type"].toString();
 
-    // Anthropic: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
-    if (obj["type"].toString() == "content_block_delta") {
-        pendingAnswer += obj["delta"].toObject()["text"].toString();
+    // Anthropic events
+    if (type == "content_block_start") {
+        const QJsonObject block = obj["content_block"].toObject();
+        if (block["type"].toString() == "tool_use")
+            pendingToolCalls[obj["index"].toInt()] = PendingToolCall{block["id"].toString(), block["name"].toString(), QString()};
     }
-    else if (obj["type"].toString() == "error") {
+    else if (type == "content_block_delta") {
+        const QJsonObject delta = obj["delta"].toObject();
+        if (delta["type"].toString() == "input_json_delta")
+            pendingToolCalls[obj["index"].toInt()].arguments += delta["partial_json"].toString();
+        else
+            pendingAnswer += delta["text"].toString();
+    }
+    else if (type == "error") {
         lastError = obj["error"].toObject()["message"].toString();
     }
-    // OpenAI-compatible: {"choices":[{"delta":{"content":"..."}}]}
+    // OpenAI-compatible chunks
     else if (obj.contains("choices")) {
         const QJsonArray choices = obj["choices"].toArray();
-        if (!choices.isEmpty())
-            pendingAnswer += choices.first().toObject()["delta"].toObject()["content"].toString();
+        if (choices.isEmpty())
+            return;
+        const QJsonObject delta = choices.first().toObject()["delta"].toObject();
+        pendingAnswer += delta["content"].toString();
+
+        const QJsonArray calls = delta["tool_calls"].toArray();
+        for (int i = 0; i < calls.size(); ++i) {
+            const QJsonObject call = calls[i].toObject();
+            PendingToolCall &pending = pendingToolCalls[call["index"].toInt(i)];
+            if (!call["id"].toString().isEmpty())
+                pending.id = call["id"].toString();
+            const QJsonObject function = call["function"].toObject();
+            if (!function["name"].toString().isEmpty())
+                pending.name = function["name"].toString();
+            pending.arguments += function["arguments"].toString();
+        }
+    }
+    else if (obj.contains("error")) {
+        lastError = obj["error"].toObject()["message"].toString();
     }
 }
 
@@ -356,7 +552,8 @@ void AiChatDock::requestFinished()
         return;
 
     const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (reply->error() != QNetworkReply::NoError && reply->error() != QNetworkReply::OperationCanceledError && lastError.isEmpty()) {
+    const bool cancelled = reply->error() == QNetworkReply::OperationCanceledError;
+    if (reply->error() != QNetworkReply::NoError && !cancelled && lastError.isEmpty()) {
         const QJsonObject obj = QJsonDocument::fromJson(streamBuffer + reply->readAll()).object();
         QString message = obj["error"].toObject()["message"].toString();
         if (message.isEmpty())
@@ -367,32 +564,120 @@ void AiChatDock::requestFinished()
         handleStreamLine(streamBuffer.trimmed());
     }
 
-    if (!pendingAnswer.isEmpty()) {
-        history.append(QJsonObject{{"role", "assistant"}, {"content", pendingAnswer}});
+    reply->deleteLater();
+    reply = nullptr;
+
+    // Tool calls from an interrupted or failed response are incomplete; drop them
+    QJsonArray calls;
+    if (!cancelled && lastError.isEmpty()) {
+        int generatedId = 0;
+        for (const PendingToolCall &pending : std::as_const(pendingToolCalls)) {
+            if (pending.name.isEmpty())
+                continue;
+            QJsonParseError parseError;
+            const QJsonDocument args = QJsonDocument::fromJson(pending.arguments.isEmpty() ? "{}" : pending.arguments.toUtf8(), &parseError);
+            QJsonObject call{
+                {"id", pending.id.isEmpty() ? QString("call_%1_%2").arg(agentSteps).arg(generatedId++) : pending.id},
+                {"name", pending.name},
+                {"input", args.object()}
+            };
+            if (parseError.error != QJsonParseError::NoError)
+                call["invalid_arguments"] = true;
+            calls.append(call);
+        }
     }
-    else {
-        // Drop the unanswered question so the conversation stays valid for the next request
+
+    if (!pendingAnswer.isEmpty() || !calls.isEmpty()) {
+        QJsonObject message{{"role", "assistant"}, {"content", pendingAnswer}};
+        if (!calls.isEmpty())
+            message["tool_calls"] = calls;
+        history.append(message);
+    }
+    else if (!history.isEmpty() && history.last().toObject()["role"].toString() == "user") {
+        // Nothing came back: drop the question so the conversation stays valid, and give it back to the user
+        const QString question = history.last().toObject()["display"].toString();
         history.removeLast();
+        if (input->toPlainText().isEmpty())
+            input->setPlainText(question);
         if (lastError.isEmpty())
             lastError = tr("Request stopped.");
     }
 
     pendingAnswer.clear();
-    reply->deleteLater();
-    reply = nullptr;
-    setBusy(false);
+    pendingToolCalls.clear();
+
+    if (!calls.isEmpty() && !stopRequested) {
+        QTimer::singleShot(0, this, &AiChatDock::runToolCalls);
+    }
+    else {
+        setBusy(false);
+    }
     renderChat();
+}
+
+void AiChatDock::runToolCalls()
+{
+    runningTools = true;
+    setBusy(true);
+
+    const QJsonArray calls = history.last().toObject()["tool_calls"].toArray();
+    for (const auto &value : calls) {
+        const QJsonObject call = value.toObject();
+        const QString name = call["name"].toString();
+        const QJsonObject callInput = call["input"].toObject();
+
+        AiAgentTools::Result result;
+        if (stopRequested) {
+            result = {"Cancelled by the user.", tr("cancelled"), true};
+        }
+        else if (call["invalid_arguments"].toBool()) {
+            result = {"The tool arguments were not valid JSON (the response may have been cut off). Try again with smaller steps.", tr("invalid arguments"), true};
+        }
+        else {
+            statusLabel->setText(tr("Running %1...").arg(name));
+            result = tools->execute(name, callInput, autoApprove->isChecked());
+        }
+
+        history.append(QJsonObject{
+            {"role", "tool"},
+            {"tool_call_id", call["id"]},
+            {"name", name},
+            {"label", toolLabel(callInput)},
+            {"content", result.content},
+            {"summary", result.summary},
+            {"is_error", result.isError}
+        });
+        renderChat();
+    }
+
+    runningTools = false;
+
+    if (stopRequested) {
+        setBusy(false);
+        renderChat();
+        return;
+    }
+    if (++agentSteps >= MAX_AGENT_STEPS) {
+        lastError = tr("Stopped after %1 steps. Send a message to continue.").arg(MAX_AGENT_STEPS);
+        setBusy(false);
+        renderChat();
+        return;
+    }
+
+    sendRequest();
 }
 
 void AiChatDock::stopRequest()
 {
+    stopRequested = true;
     if (reply)
         reply->abort();
 }
 
 void AiChatDock::clearChat()
 {
-    stopRequest();
+    if (reply || runningTools)
+        return;
     history = QJsonArray();
     lastError.clear();
     renderChat();
@@ -406,7 +691,7 @@ void AiChatDock::insertLastCodeBlock()
 
     for (int i = history.size() - 1; i >= 0; --i) {
         const QJsonObject m = history.at(i).toObject();
-        if (m["role"].toString() != "assistant")
+        if (m["role"].toString() != "assistant" || m["content"].toString().isEmpty())
             continue;
         const QString code = lastCodeBlock(m["content"].toString());
         if (code.isEmpty())
@@ -421,20 +706,52 @@ void AiChatDock::insertLastCodeBlock()
 void AiChatDock::renderChat()
 {
     QString md;
-    if (history.isEmpty() && pendingAnswer.isEmpty() && lastError.isEmpty()) {
-        md = tr("### AI Assistant\n\nSelect code or open a file, then ask a question. "
+    if (history.isEmpty() && !reply && lastError.isEmpty()) {
+        md = tr("### AI Assistant\n\n"
+                "**Agent mode** lets the AI explore your project, edit files (you approve each diff) and run commands. "
+                "Open your project with *File > Open Folder as Workspace* first.\n\n"
                 "Use **Settings** to choose Claude, OpenAI or a local Ollama model.");
     }
 
-    for (const auto &value : history) {
-        const QJsonObject m = value.toObject();
-        if (m["role"].toString() == "user")
-            md += "#### " + tr("You") + "\n\n" + m["content"].toString() + "\n\n---\n\n";
-        else
-            md += "#### " + tr("AI") + "\n\n" + m["content"].toString() + "\n\n---\n\n";
+    bool assistantHeader = false;
+    for (int i = 0; i < history.size(); ++i) {
+        const QJsonObject m = history.at(i).toObject();
+        const QString role = m["role"].toString();
+        if (role == "user") {
+            if (i > 0)
+                md += "---\n\n";
+            const QString text = m["display"].toString().isEmpty() ? m["content"].toString() : m["display"].toString();
+            md += "#### " + tr("You") + "\n\n" + text + "\n\n";
+            assistantHeader = false;
+        }
+        else if (role == "assistant") {
+            if (!assistantHeader) {
+                md += "#### " + tr("AI") + "\n\n";
+                assistantHeader = true;
+            }
+            if (!m["content"].toString().isEmpty())
+                md += m["content"].toString() + "\n\n";
+        }
+        else if (role == "tool") {
+            const QString label = m["label"].toString();
+            md += QString("> %1 **%2**%3 — %4%5\n\n")
+                      .arg(m["is_error"].toBool() ? "✗" : "✓",
+                           m["name"].toString(),
+                           label.isEmpty() ? QString() : " `" + label + "`",
+                           m["is_error"].toBool() ? "*" : "",
+                           m["summary"].toString() + (m["is_error"].toBool() ? "*" : ""));
+        }
     }
+
     if (reply) {
-        md += "#### " + tr("AI") + "\n\n" + (pendingAnswer.isEmpty() ? QString("_...") + tr("thinking") + "_" : pendingAnswer) + "\n\n";
+        if (!assistantHeader)
+            md += "#### " + tr("AI") + "\n\n";
+        if (!pendingAnswer.isEmpty())
+            md += pendingAnswer + "\n\n";
+        for (const PendingToolCall &pending : std::as_const(pendingToolCalls))
+            md += QString("> … **%1**\n\n").arg(pending.name);
+        if (pendingAnswer.isEmpty() && pendingToolCalls.isEmpty())
+            md += "_" + tr("thinking...") + "_\n\n";
     }
     if (!lastError.isEmpty())
         md += "**" + tr("Error") + ":** " + lastError + "\n";
@@ -445,9 +762,10 @@ void AiChatDock::renderChat()
     if (atBottom)
         bar->setValue(bar->maximum());
 
-    const Provider p = loadProvider();
-    if (!reply)
+    if (!reply && !runningTools) {
+        const Provider p = loadProvider();
         statusLabel->setText(p.model.isEmpty() ? tr("No model set") : p.model);
+    }
 }
 
 void AiChatDock::setBusy(bool busy)
@@ -455,6 +773,7 @@ void AiChatDock::setBusy(bool busy)
     sendButton->setEnabled(!busy);
     stopButton->setEnabled(busy);
     insertButton->setEnabled(!busy);
-    if (busy)
+    clearButton->setEnabled(!busy);
+    if (busy && !runningTools)
         statusLabel->setText(tr("Generating..."));
 }

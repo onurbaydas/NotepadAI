@@ -15,7 +15,8 @@ Always rebuild after a change and fix every compiler error before finishing. Hea
 ## Layout
 
 - `src/dialogs/MainWindow.cpp` — main window; docks are created and added to the View menu in its constructor.
-- `src/docks/` — dock panels. `AiChatDock.*` is the AI assistant; `FolderAsWorkspaceDock.*` is the file tree.
+- `src/AiAgentTools.*` — agent tools (list/read/search/edit/write files, run_command), path sandboxing to the workspace root, diff approval dialog.
+- `src/docks/` — dock panels. `AiChatDock.*` is the AI assistant (chat UI, streaming, agent loop); `FolderAsWorkspaceDock.*` is the file tree.
 - `src/ScintillaNext.*` — editor widget (Scintilla). Use `getSelText()`, `getText(textLength() + 1)`, `replaceSel()`. Note `ScintillaEdit::setFocus(bool)` shadows `QWidget::setFocus()`; call `editor->QWidget::setFocus()`.
 - `thirdparty/` — vendored libraries (Scintilla, Lexilla, Lua, ...). Do not modify.
 - New source files must be listed in `src/CMakeLists.txt`.
@@ -25,6 +26,7 @@ Always rebuild after a change and fix every compiler error before finishing. Hea
 - Settings live in `QSettings` under the `AI/` group (`Provider`, `BaseUrl`, `ApiKey`, `Model`). Settings are INI: `~/.config/NotepadAI/NotepadAI.ini`.
 - `Provider=anthropic` → `POST {base}/v1/messages` with SSE `content_block_delta` events.
 - `Provider=openai` → `POST {base}/chat/completions` with SSE `choices[0].delta.content` (OpenAI, Ollama, LM Studio, OpenRouter).
+- History is stored provider-neutral (`user`, `assistant` with `tool_calls`, `tool`) and converted per request by `anthropicMessages()` / `openAiMessages()`.
 - To test without a real key, run a local mock SSE server and point `BaseUrl` at it.
 
 ## Conventions
