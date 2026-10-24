@@ -1,7 +1,12 @@
 name: Build NotepadAI
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish a GitHub release with this tag (e.g. v0.16); leave empty to only build'
+        required: false
+        default: ''
   push:
     branches:
       - master
@@ -221,12 +226,12 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     permissions:
       contents: write
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ inputs.release_tag || github.ref_name }}
 
     steps:
       - name: Download all artifacts
@@ -245,4 +250,4 @@ jobs:
 
       - name: Create Release
         run: |
-          gh release create "$TAG" dist/* --repo "${{ github.repository }}" --title "NotepadAI $TAG" --generate-notes
+          gh release create "$TAG" dist/* --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "NotepadAI $TAG" --generate-notes
