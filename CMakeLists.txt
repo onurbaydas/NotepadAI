@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(NotepadNext
-    VERSION 0.15
-    DESCRIPTION "Cross-platform text editor"
+    VERSION 0.16
+    DESCRIPTION "Cross-platform text editor with an AI coding agent"
     LANGUAGES CXX
 )
 
@@ -19,6 +19,8 @@ add_compile_definitions(SCI_OWNREGEX)
 if(MSVC)
     # https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
     add_compile_definitions(_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+    # Sources are UTF-8 (the AI panel uses symbols like ✓ and —)
+    add_compile_options(/utf-8)
     add_compile_options(/guard:cf)
     add_link_options(/guard:cf)
 endif()

@@ -47,7 +47,7 @@ const int MAX_LIST_DEPTH = 6;
 const int MAX_SEARCH_FILES = 5000;
 const int MAX_SEARCH_RESULTS = 200;
 const qint64 MAX_FILE_SIZE = 2 * 1024 * 1024;
-const int MAX_READ_CHARS = 100000;
+const int MAX_READ_CHARS = 60000;
 const int MAX_COMMAND_OUTPUT = 30000;
 const int COMMAND_TIMEOUT_MS = 120000;
 const int DIFF_CONTEXT = 3;
@@ -379,30 +379,56 @@ AiAgentTools::Result AiAgentTools::applyChange(const QString &absolutePath, cons
 
     if (!autoApprove) {
         const QString title = isNew ? tr("Create file: %1").arg(rel) : tr("Edit file: %1").arg(rel);
-        if (!askApproval(title, diffHtml(oldText, newText)))
+        if (!askApproval(window, title, diffHtml(oldText, newText)))
             return Result{"The user rejected this change. Ask what they want instead.", tr("rejected by user"), true};
     }
 
+    if (beforeChange)
+        beforeChange(absolutePath, !isNew, oldText);
+
+    const QString error = writeContent(absolutePath, newText, true);
+    if (!error.isEmpty())
+        return Result{error, tr("write failed"), true};
+
+    return Result{QString("%1 %2.").arg(isNew ? "Created" : "Updated", rel), isNew ? tr("created") : tr("applied"), false};
+}
+
+QString AiAgentTools::writeContent(const QString &absolutePath, const QString &text, bool openIfClosed)
+{
     NotepadNextApplication *app = qobject_cast<NotepadNextApplication *>(qApp);
     ScintillaNext *editor = app->getEditorManager()->getEditorByFilePath(absolutePath);
 
     if (editor) {
         // Edit the open buffer so the change can be undone with Ctrl+Z, then save it
-        const QByteArray data = newText.toUtf8();
+        const QByteArray data = text.toUtf8();
         editor->targetWholeDocument();
         editor->replaceTargetMinimal(data.size(), data.constData());
         if (editor->save() != QFileDevice::NoError)
-            return Result{"The change was applied in the editor but saving failed.", tr("save failed"), true};
-    }
-    else {
-        QDir().mkpath(QFileInfo(absolutePath).absolutePath());
-        QSaveFile file(absolutePath);
-        if (!file.open(QIODevice::WriteOnly) || file.write(newText.toUtf8()) < 0 || !file.commit())
-            return Result{QString("Cannot write '%1': %2").arg(rel, file.errorString()), tr("write failed"), true};
-        window->openFile(absolutePath);
+            return "The change was applied in the editor but saving failed.";
+        return QString();
     }
 
-    return Result{QString("%1 %2.").arg(isNew ? "Created" : "Updated", rel), isNew ? tr("created") : tr("applied"), false};
+    QDir().mkpath(QFileInfo(absolutePath).absolutePath());
+    QSaveFile file(absolutePath);
+    if (!file.open(QIODevice::WriteOnly) || file.write(text.toUtf8()) < 0 || !file.commit())
+        return QString("Cannot write '%1': %2").arg(relativePath(absolutePath), file.errorString());
+    if (openIfClosed)
+        window->openFile(absolutePath);
+    return QString();
+}
+
+bool AiAgentTools::restoreFile(const QString &absolutePath, bool existed, const QString &content)
+{
+    if (existed)
+        return writeContent(absolutePath, content, false).isEmpty();
+
+    NotepadNextApplication *app = qobject_cast<NotepadNextApplication *>(qApp);
+    ScintillaNext *editor = app->getEditorManager()->getEditorByFilePath(absolutePath);
+    if (editor) {
+        // Closing a file that was just saved does not prompt
+        editor->close();
+    }
+    return QFile::remove(absolutePath) || !QFileInfo::exists(absolutePath);
 }
 
 AiAgentTools::Result AiAgentTools::runCommand(const QJsonObject &input)
@@ -416,7 +442,7 @@ AiAgentTools::Result AiAgentTools::runCommand(const QJsonObject &input)
 
     const QString html = QString("<p>%1</p><pre style=\"font-family: monospace; font-size: 11pt;\">%2</pre><p style=\"color: gray;\">%3</p>")
                              .arg(tr("The AI wants to run this command:"), command.toHtmlEscaped(), tr("in %1").arg(root.toHtmlEscaped()));
-    if (!askApproval(tr("Run command"), html))
+    if (!askApproval(window, tr("Run command"), html))
         return Result{"The user rejected this command.", tr("rejected by user"), true};
 
     QProcess process;
@@ -461,9 +487,9 @@ AiAgentTools::Result AiAgentTools::runCommand(const QJsonObject &input)
     return Result{QString("Exit code: %1\n%2").arg(code).arg(output), tr("exit code %1").arg(code), code != 0};
 }
 
-bool AiAgentTools::askApproval(const QString &title, const QString &html)
+bool AiAgentTools::askApproval(QWidget *parent, const QString &title, const QString &html)
 {
-    QDialog dialog(window);
+    QDialog dialog(parent);
     dialog.setWindowTitle(title);
     dialog.resize(900, 600);
 

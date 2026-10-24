@@ -18,31 +18,36 @@
 #include "AiChatDock.h"
 
 #include "AiAgentTools.h"
+#include "AiClient.h"
 #include "MainWindow.h"
 #include "ScintillaNext.h"
 
 #include <QCheckBox>
-#include <QComboBox>
-#include <QDialog>
-#include <QDialogButtonBox>
+#include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
-#include <QFormLayout>
+#include <QFile>
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QLineEdit>
+#include <QMenu>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
-#include <QNetworkRequest>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollBar>
+#include <QSet>
+#include <QSaveFile>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QTextBrowser>
 #include <QTimer>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace {
 
@@ -68,15 +73,14 @@ const int MAX_CONTEXT_CHARS = 60000;
 // Upper bound on tool round trips for a single user message.
 const int MAX_AGENT_STEPS = 30;
 
-QString defaultBaseUrl(const QString &type)
-{
-    return type == "anthropic" ? "https://api.anthropic.com" : "https://api.openai.com/v1";
-}
+// Context management (roughly 4 characters per token): above COMPACT_AT older tool
+// outputs are shortened, above DROP_AT the oldest turns are removed.
+const int COMPACT_AT_CHARS = 240000;
+const int DROP_AT_CHARS = 480000;
+const int KEEP_RECENT_TOOL_RESULTS = 3;
+const int COMPACTED_TOOL_RESULT_CHARS = 800;
 
-QString defaultModel(const QString &type)
-{
-    return type == "anthropic" ? "claude-sonnet-5-5" : "gpt-4o-mini";
-}
+const int MAX_HISTORY_MENU_ITEMS = 30;
 
 QString lastCodeBlock(const QString &markdown)
 {
@@ -91,12 +95,23 @@ QString lastCodeBlock(const QString &markdown)
 // Short description of a tool call for the chat, e.g. the path or command.
 QString toolLabel(const QJsonObject &input)
 {
-    for (const char *key : {"path", "command", "pattern"}) {
+    static const char *const keys[] = {"path", "command", "pattern"};
+    for (const char *key : keys) {
         const QString value = input[key].toString();
         if (!value.isEmpty())
             return value.left(120);
     }
     return QString();
+}
+
+QString formatTokens(int tokens)
+{
+    return tokens >= 1000 ? QString::number(tokens / 1000.0, 'f', 1) + "k" : QString::number(tokens);
+}
+
+int historySize(const QJsonArray &history)
+{
+    return QJsonDocument(history).toJson(QJsonDocument::Compact).size();
 }
 
 }
@@ -119,15 +134,18 @@ AiChatDock::AiChatDock(MainWindow *window) :
     QHBoxLayout *toolbar = new QHBoxLayout();
     statusLabel = new QLabel(container);
     statusLabel->setStyleSheet("color: gray;");
+    statusLabel->setMinimumWidth(40);
     QPushButton *settingsButton = new QPushButton(tr("Settings"), container);
+    historyButton = new QPushButton(tr("History"), container);
     clearButton = new QPushButton(tr("New Chat"), container);
     toolbar->addWidget(statusLabel, 1);
     toolbar->addWidget(clearButton);
+    toolbar->addWidget(historyButton);
     toolbar->addWidget(settingsButton);
     layout->addLayout(toolbar);
 
     chatView = new QTextBrowser(container);
-    chatView->setOpenExternalLinks(true);
+    chatView->setOpenLinks(false);
     layout->addWidget(chatView, 1);
 
     input = new QPlainTextEdit(container);
@@ -171,15 +189,34 @@ AiChatDock::AiChatDock(MainWindow *window) :
 
     connect(sendButton, &QPushButton::clicked, this, &AiChatDock::sendMessage);
     connect(stopButton, &QPushButton::clicked, this, &AiChatDock::stopRequest);
-    connect(clearButton, &QPushButton::clicked, this, &AiChatDock::clearChat);
-    connect(settingsButton, &QPushButton::clicked, this, &AiChatDock::openSettings);
+    connect(clearButton, &QPushButton::clicked, this, &AiChatDock::newChat);
+    connect(historyButton, &QPushButton::clicked, this, &AiChatDock::showHistoryMenu);
+    connect(settingsButton, &QPushButton::clicked, this, [this]() {
+        if (AiClient::showSettings(this))
+            renderChat();
+    });
     connect(insertButton, &QPushButton::clicked, this, &AiChatDock::insertLastCodeBlock);
     connect(explainButton, &QPushButton::clicked, this, &AiChatDock::explainSelection);
+    connect(chatView, &QTextBrowser::anchorClicked, this, &AiChatDock::linkClicked);
     connect(agentMode, &QCheckBox::toggled, this, [](bool checked) { QSettings().setValue("AI/AgentMode", checked); });
     connect(autoApprove, &QCheckBox::toggled, this, [](bool checked) { QSettings().setValue("AI/AutoApprove", checked); });
 
+    // Remember what each file looked like before the agent first touched it in a turn
+    tools->beforeChange = [this](const QString &path, bool existed, const QString &content) {
+        QMap<QString, FileSnapshot> &snapshots = checkpoints[nextTurn - 1];
+        if (!snapshots.contains(path))
+            snapshots.insert(path, FileSnapshot(existed, content));
+    };
+
     setBusy(false);
     renderChat();
+}
+
+void AiChatDock::focusInput()
+{
+    show();
+    raise();
+    input->setFocus();
 }
 
 bool AiChatDock::eventFilter(QObject *obj, QEvent *event)
@@ -192,67 +229,6 @@ bool AiChatDock::eventFilter(QObject *obj, QEvent *event)
         }
     }
     return QDockWidget::eventFilter(obj, event);
-}
-
-AiChatDock::Provider AiChatDock::loadProvider() const
-{
-    QSettings settings;
-    Provider p;
-    p.type = settings.value("AI/Provider", "anthropic").toString();
-    p.baseUrl = settings.value("AI/BaseUrl", defaultBaseUrl(p.type)).toString();
-    p.apiKey = settings.value("AI/ApiKey").toString();
-    p.model = settings.value("AI/Model", defaultModel(p.type)).toString();
-    return p;
-}
-
-void AiChatDock::openSettings()
-{
-    Provider p = loadProvider();
-
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("AI Settings"));
-    QFormLayout *form = new QFormLayout(&dialog);
-
-    QComboBox *type = new QComboBox(&dialog);
-    type->addItem("Anthropic (Claude)", "anthropic");
-    type->addItem("OpenAI-compatible (OpenAI, Ollama, LM Studio, OpenRouter...)", "openai");
-    type->setCurrentIndex(type->findData(p.type));
-    QLineEdit *baseUrl = new QLineEdit(p.baseUrl, &dialog);
-    QLineEdit *apiKey = new QLineEdit(p.apiKey, &dialog);
-    apiKey->setEchoMode(QLineEdit::Password);
-    apiKey->setPlaceholderText(tr("Not needed for local Ollama"));
-    QLineEdit *model = new QLineEdit(p.model, &dialog);
-    QLabel *hint = new QLabel(tr("Ollama: choose OpenAI-compatible, URL http://localhost:11434/v1, model e.g. qwen2.5-coder. "
-                                 "Agent mode needs a model that supports tool calling."), &dialog);
-    hint->setWordWrap(true);
-    hint->setStyleSheet("color: gray;");
-
-    connect(type, &QComboBox::currentIndexChanged, &dialog, [=]() {
-        const QString t = type->currentData().toString();
-        baseUrl->setText(defaultBaseUrl(t));
-        model->setText(defaultModel(t));
-    });
-
-    form->addRow(tr("Provider:"), type);
-    form->addRow(tr("Base URL:"), baseUrl);
-    form->addRow(tr("API Key:"), apiKey);
-    form->addRow(tr("Model:"), model);
-    form->addRow(hint);
-
-    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    form->addRow(buttons);
-    dialog.resize(560, dialog.sizeHint().height());
-
-    if (dialog.exec() == QDialog::Accepted) {
-        QSettings settings;
-        settings.setValue("AI/Provider", type->currentData().toString());
-        settings.setValue("AI/BaseUrl", baseUrl->text().trimmed());
-        settings.setValue("AI/ApiKey", apiKey->text().trimmed());
-        settings.setValue("AI/Model", model->text().trimmed());
-        renderChat();
-    }
 }
 
 QString AiChatDock::buildContext() const
@@ -280,21 +256,27 @@ QString AiChatDock::buildContext() const
 
 QString AiChatDock::systemPrompt() const
 {
-    if (!agentMode->isChecked())
-        return CHAT_PROMPT;
+    QString prompt;
+    if (!agentMode->isChecked()) {
+        prompt = CHAT_PROMPT;
+    }
+    else {
+        const QString root = tools->workspaceRoot();
+        QString currentFile = "(none)";
+        ScintillaNext *editor = window->currentEditor();
+        if (editor) {
+            currentFile = editor->getName();
+            if (editor->isFile() && !root.isEmpty())
+                currentFile = QDir(root).relativeFilePath(editor->getFilePath());
+        }
 
-    const QString root = tools->workspaceRoot();
-    QString currentFile = "(none)";
-    ScintillaNext *editor = window->currentEditor();
-    if (editor) {
-        currentFile = editor->getName();
-        if (editor->isFile() && !root.isEmpty())
-            currentFile = QDir(root).relativeFilePath(editor->getFilePath());
+        prompt = QString(AGENT_PROMPT).arg(root.isEmpty() ? "(none)" : root, currentFile);
+        if (root.isEmpty())
+            prompt += "\n\nNo workspace folder is open, so file tools will fail. Tell the user to open one with File > Open Folder as Workspace.";
     }
 
-    QString prompt = QString(AGENT_PROMPT).arg(root.isEmpty() ? "(none)" : root, currentFile);
-    if (root.isEmpty())
-        prompt += "\n\nNo workspace folder is open, so file tools will fail. Tell the user to open one with File > Open Folder as Workspace.";
+    if (historyTrimmed)
+        prompt += "\n\nThe beginning of this conversation was removed to stay within the context limit.";
     return prompt;
 }
 
@@ -317,10 +299,8 @@ void AiChatDock::explainSelection()
 
 void AiChatDock::addUserMessage(const QString &question)
 {
-    const Provider p = loadProvider();
-    if (p.apiKey.isEmpty() && !p.baseUrl.contains("localhost") && !p.baseUrl.contains("127.0.0.1")) {
-        openSettings();
-        if (loadProvider().apiKey.isEmpty()) {
+    if (!AiClient::isConfigured(AiClient::load())) {
+        if (!AiClient::showSettings(this) || !AiClient::isConfigured(AiClient::load())) {
             input->setPlainText(question);
             return;
         }
@@ -330,11 +310,52 @@ void AiChatDock::addUserMessage(const QString &question)
     if (includeContext->isChecked())
         content = buildContext() + question;
 
-    history.append(QJsonObject{{"role", "user"}, {"content", content}, {"display", question}});
+    if (chatId.isEmpty())
+        chatId = QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss-zzz");
+
+    history.append(QJsonObject{{"role", "user"}, {"content", content}, {"display", question}, {"turn", nextTurn++}});
     stopRequested = false;
     agentSteps = 0;
     lastError.clear();
     sendRequest();
+}
+
+void AiChatDock::compactHistory()
+{
+    if (historySize(history) < COMPACT_AT_CHARS)
+        return;
+
+    // Shorten old tool outputs; the model can call the tool again if it needs them
+    QList<int> toolMessages;
+    for (int i = 0; i < history.size(); ++i) {
+        if (history.at(i).toObject()["role"].toString() == "tool")
+            toolMessages.append(i);
+    }
+    for (int k = 0; k < toolMessages.size() - KEEP_RECENT_TOOL_RESULTS; ++k) {
+        QJsonObject m = history.at(toolMessages[k]).toObject();
+        const QString content = m["content"].toString();
+        if (m["compacted"].toBool() || content.size() <= COMPACTED_TOOL_RESULT_CHARS * 2)
+            continue;
+        m["content"] = content.left(COMPACTED_TOOL_RESULT_CHARS) + "\n... [older output removed to save context; call the tool again if you need it]";
+        m["compacted"] = true;
+        history[toolMessages[k]] = m;
+    }
+
+    // Still too big: drop whole turns from the start, always keeping the current one
+    while (historySize(history) > DROP_AT_CHARS) {
+        int nextUser = -1;
+        for (int i = 1; i < history.size(); ++i) {
+            if (history.at(i).toObject()["role"].toString() == "user") {
+                nextUser = i;
+                break;
+            }
+        }
+        if (nextUser < 0)
+            break;
+        for (int i = 0; i < nextUser; ++i)
+            history.removeFirst();
+        historyTrimmed = true;
+    }
 }
 
 QJsonArray AiChatDock::anthropicMessages() const
@@ -373,6 +394,17 @@ QJsonArray AiChatDock::anthropicMessages() const
             append("user", QJsonObject{{"type", "tool_result"}, {"tool_use_id", m["tool_call_id"]},
                                        {"content", m["content"]}, {"is_error", m["is_error"].toBool()}});
         }
+    }
+
+    // Prompt caching: everything up to the newest block is cached and reused by the next request
+    if (!messages.isEmpty()) {
+        QJsonObject last = messages.last().toObject();
+        QJsonArray content = last["content"].toArray();
+        QJsonObject block = content.last().toObject();
+        block["cache_control"] = QJsonObject{{"type", "ephemeral"}};
+        content[content.size() - 1] = block;
+        last["content"] = content;
+        messages[messages.size() - 1] = last;
     }
     return messages;
 }
@@ -414,30 +446,23 @@ QJsonArray AiChatDock::openAiMessages() const
 
 void AiChatDock::sendRequest()
 {
-    const Provider p = loadProvider();
-    requestProviderType = p.type;
+    compactHistory();
+
+    const AiClient::Provider p = AiClient::load();
     pendingAnswer.clear();
     pendingToolCalls.clear();
     streamBuffer.clear();
+    usageText.clear();
 
     QJsonObject body;
     body["model"] = p.model;
     body["stream"] = true;
-    QNetworkRequest request;
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QString base = p.baseUrl;
-    while (base.endsWith('/'))
-        base.chop(1);
 
     const QJsonArray toolDefinitions = AiAgentTools::definitions();
 
     if (p.type == "anthropic") {
-        request.setUrl(QUrl(base + "/v1/messages"));
-        request.setRawHeader("x-api-key", p.apiKey.toUtf8());
-        request.setRawHeader("anthropic-version", "2023-06-01");
         body["max_tokens"] = 16000;
-        body["system"] = systemPrompt();
+        body["system"] = QJsonArray{QJsonObject{{"type", "text"}, {"text", systemPrompt()}, {"cache_control", QJsonObject{{"type", "ephemeral"}}}}};
         body["messages"] = anthropicMessages();
         if (agentMode->isChecked()) {
             QJsonArray defs;
@@ -445,13 +470,13 @@ void AiChatDock::sendRequest()
                 const QJsonObject o = t.toObject();
                 defs.append(QJsonObject{{"name", o["name"]}, {"description", o["description"]}, {"input_schema", o["schema"]}});
             }
+            QJsonObject last = defs.last().toObject();
+            last["cache_control"] = QJsonObject{{"type", "ephemeral"}};
+            defs[defs.size() - 1] = last;
             body["tools"] = defs;
         }
     }
     else {
-        request.setUrl(QUrl(base + "/chat/completions"));
-        if (!p.apiKey.isEmpty())
-            request.setRawHeader("Authorization", "Bearer " + p.apiKey.toUtf8());
         body["messages"] = openAiMessages();
         if (agentMode->isChecked()) {
             QJsonArray defs;
@@ -464,7 +489,7 @@ void AiChatDock::sendRequest()
         }
     }
 
-    reply = network->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    reply = network->post(AiClient::buildRequest(p), QJsonDocument(body).toJson(QJsonDocument::Compact));
     connect(reply, &QNetworkReply::readyRead, this, &AiChatDock::handleStreamData);
     connect(reply, &QNetworkReply::finished, this, &AiChatDock::requestFinished);
 
@@ -506,7 +531,15 @@ void AiChatDock::handleStreamLine(const QByteArray &line)
     const QString type = obj["type"].toString();
 
     // Anthropic events
-    if (type == "content_block_start") {
+    if (type == "message_start") {
+        const QJsonObject usage = obj["message"].toObject()["usage"].toObject();
+        const int cached = usage["cache_read_input_tokens"].toInt();
+        const int total = usage["input_tokens"].toInt() + cached + usage["cache_creation_input_tokens"].toInt();
+        usageText = tr("%1 tokens").arg(formatTokens(total));
+        if (cached > 0)
+            usageText += " " + tr("(%1 cached)").arg(formatTokens(cached));
+    }
+    else if (type == "content_block_start") {
         const QJsonObject block = obj["content_block"].toObject();
         if (block["type"].toString() == "tool_use")
             pendingToolCalls[obj["index"].toInt()] = PendingToolCall{block["id"].toString(), block["name"].toString(), QString()};
@@ -551,14 +584,9 @@ void AiChatDock::requestFinished()
     if (!reply)
         return;
 
-    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const bool cancelled = reply->error() == QNetworkReply::OperationCanceledError;
     if (reply->error() != QNetworkReply::NoError && !cancelled && lastError.isEmpty()) {
-        const QJsonObject obj = QJsonDocument::fromJson(streamBuffer + reply->readAll()).object();
-        QString message = obj["error"].toObject()["message"].toString();
-        if (message.isEmpty())
-            message = reply->errorString();
-        lastError = status ? QString("HTTP %1: %2").arg(status).arg(message) : message;
+        lastError = AiClient::errorMessage(reply, streamBuffer + reply->readAll());
     }
     else if (!streamBuffer.trimmed().isEmpty()) {
         handleStreamLine(streamBuffer.trimmed());
@@ -577,7 +605,7 @@ void AiChatDock::requestFinished()
             QJsonParseError parseError;
             const QJsonDocument args = QJsonDocument::fromJson(pending.arguments.isEmpty() ? "{}" : pending.arguments.toUtf8(), &parseError);
             QJsonObject call{
-                {"id", pending.id.isEmpty() ? QString("call_%1_%2").arg(agentSteps).arg(generatedId++) : pending.id},
+                {"id", pending.id.isEmpty() ? QString("call_%1_%2_%3").arg(nextTurn).arg(agentSteps).arg(generatedId++) : pending.id},
                 {"name", pending.name},
                 {"input", args.object()}
             };
@@ -605,6 +633,7 @@ void AiChatDock::requestFinished()
 
     pendingAnswer.clear();
     pendingToolCalls.clear();
+    saveChat();
 
     if (!calls.isEmpty() && !stopRequested) {
         QTimer::singleShot(0, this, &AiChatDock::runToolCalls);
@@ -651,6 +680,7 @@ void AiChatDock::runToolCalls()
     }
 
     runningTools = false;
+    saveChat();
 
     if (stopRequested) {
         setBusy(false);
@@ -674,13 +704,165 @@ void AiChatDock::stopRequest()
         reply->abort();
 }
 
-void AiChatDock::clearChat()
+void AiChatDock::newChat()
 {
     if (reply || runningTools)
         return;
     history = QJsonArray();
+    chatId.clear();
+    checkpoints.clear();
+    nextTurn = 1;
+    historyTrimmed = false;
     lastError.clear();
+    usageText.clear();
     renderChat();
+}
+
+void AiChatDock::linkClicked(const QUrl &url)
+{
+    if (url.scheme() == "restore")
+        restoreCheckpoint(url.path().toInt());
+    else
+        QDesktopServices::openUrl(url);
+}
+
+void AiChatDock::restoreCheckpoint(int turn)
+{
+    if (reply || runningTools)
+        return;
+
+    // Undo this turn and every later one, newest first, so each file ends at its oldest snapshot
+    QList<int> turns;
+    QSet<QString> files;
+    for (auto it = checkpoints.cbegin(); it != checkpoints.cend(); ++it) {
+        if (it.key() >= turn) {
+            turns.prepend(it.key());
+            for (const QString &path : it.value().keys())
+                files.insert(path);
+        }
+    }
+
+    const auto answer = QMessageBox::question(this, tr("Restore Checkpoint"),
+        tr("Revert %n file(s) changed by the AI since this message and remove the conversation from this message on?\n\n"
+           "Effects of commands the AI ran (for example installed packages) are not undone.", "", files.size()));
+    if (answer != QMessageBox::Yes)
+        return;
+
+    QStringList failed;
+    for (int t : std::as_const(turns)) {
+        const QMap<QString, FileSnapshot> &snapshots = checkpoints[t];
+        for (auto it = snapshots.cbegin(); it != snapshots.cend(); ++it) {
+            if (!tools->restoreFile(it.key(), it.value().first, it.value().second))
+                failed.append(it.key());
+        }
+        checkpoints.remove(t);
+    }
+
+    for (int i = 0; i < history.size(); ++i) {
+        const QJsonObject m = history.at(i).toObject();
+        if (m["role"].toString() == "user" && m["turn"].toInt() == turn) {
+            input->setPlainText(m["display"].toString());
+            while (history.size() > i)
+                history.removeLast();
+            break;
+        }
+    }
+
+    lastError = failed.isEmpty() ? QString() : tr("Could not restore: %1").arg(failed.join(", "));
+    saveChat();
+    renderChat();
+}
+
+QString AiChatDock::chatsDirectory() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/chats";
+}
+
+void AiChatDock::saveChat()
+{
+    if (chatId.isEmpty())
+        return;
+
+    const QString path = chatsDirectory() + "/" + chatId + ".json";
+    if (history.isEmpty()) {
+        QFile::remove(path);
+        return;
+    }
+
+    QString title;
+    for (const auto &value : history) {
+        const QJsonObject m = value.toObject();
+        if (m["role"].toString() == "user") {
+            title = m["display"].toString().simplified().left(80);
+            break;
+        }
+    }
+
+    const QJsonObject chat{
+        {"id", chatId},
+        {"title", title},
+        {"updated", QDateTime::currentDateTime().toString(Qt::ISODate)},
+        {"workspace", tools->workspaceRoot()},
+        {"trimmed", historyTrimmed},
+        {"history", history}
+    };
+
+    QDir().mkpath(chatsDirectory());
+    QSaveFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(chat).toJson(QJsonDocument::Compact));
+        file.commit();
+    }
+}
+
+void AiChatDock::loadChat(const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject chat = QJsonDocument::fromJson(file.readAll()).object();
+
+    newChat();
+    chatId = chat["id"].toString();
+    history = chat["history"].toArray();
+    historyTrimmed = chat["trimmed"].toBool();
+    for (const auto &value : std::as_const(history))
+        nextTurn = qMax(nextTurn, value.toObject()["turn"].toInt() + 1);
+    renderChat();
+    chatView->verticalScrollBar()->setValue(chatView->verticalScrollBar()->maximum());
+}
+
+void AiChatDock::showHistoryMenu()
+{
+    if (reply || runningTools)
+        return;
+
+    QFileInfoList files = QDir(chatsDirectory()).entryInfoList({"*.json"}, QDir::Files, QDir::Time);
+    QMenu menu(this);
+    if (files.isEmpty())
+        menu.addAction(tr("No saved chats"))->setEnabled(false);
+
+    for (const QFileInfo &info : files.mid(0, MAX_HISTORY_MENU_ITEMS)) {
+        QFile file(info.filePath());
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        const QJsonObject chat = QJsonDocument::fromJson(file.readAll()).object();
+        const QString title = chat["title"].toString().isEmpty() ? info.baseName() : chat["title"].toString();
+        const QString when = info.lastModified().toString("dd.MM HH:mm");
+        QAction *action = menu.addAction(QString("%1  —  %2").arg(when, title));
+        const QString path = info.filePath();
+        connect(action, &QAction::triggered, this, [this, path]() { loadChat(path); });
+    }
+
+    if (!chatId.isEmpty()) {
+        menu.addSeparator();
+        connect(menu.addAction(tr("Delete Current Chat")), &QAction::triggered, this, [this]() {
+            QFile::remove(chatsDirectory() + "/" + chatId + ".json");
+            newChat();
+        });
+    }
+
+    menu.exec(historyButton->mapToGlobal(QPoint(0, historyButton->height())));
 }
 
 void AiChatDock::insertLastCodeBlock()
@@ -705,13 +887,18 @@ void AiChatDock::insertLastCodeBlock()
 
 void AiChatDock::renderChat()
 {
+    const bool busy = reply || runningTools;
     QString md;
     if (history.isEmpty() && !reply && lastError.isEmpty()) {
         md = tr("### AI Assistant\n\n"
                 "**Agent mode** lets the AI explore your project, edit files (you approve each diff) and run commands. "
                 "Open your project with *File > Open Folder as Workspace* first.\n\n"
-                "Use **Settings** to choose Claude, OpenAI or a local Ollama model.");
+                "In the editor: **Ctrl+I** edits the selection with AI, suggestions while typing are accepted with **Tab**, "
+                "**Ctrl+L** jumps here.\n\n"
+                "Use **Settings** to sign in with OpenRouter in your browser, or choose Claude, OpenAI or a local Ollama model.");
     }
+    if (historyTrimmed)
+        md += "_" + tr("Older messages were removed to stay within the context limit.") + "_\n\n";
 
     bool assistantHeader = false;
     for (int i = 0; i < history.size(); ++i) {
@@ -722,6 +909,14 @@ void AiChatDock::renderChat()
                 md += "---\n\n";
             const QString text = m["display"].toString().isEmpty() ? m["content"].toString() : m["display"].toString();
             md += "#### " + tr("You") + "\n\n" + text + "\n\n";
+
+            const int turn = m["turn"].toInt();
+            if (!busy && checkpoints.contains(turn) && !checkpoints[turn].isEmpty()) {
+                md += QString("[↶ %1](restore:%2) — %3\n\n")
+                          .arg(tr("Restore checkpoint"))
+                          .arg(turn)
+                          .arg(tr("%n file(s) changed", "", checkpoints[turn].size()));
+            }
             assistantHeader = false;
         }
         else if (role == "assistant") {
@@ -762,9 +957,13 @@ void AiChatDock::renderChat()
     if (atBottom)
         bar->setValue(bar->maximum());
 
-    if (!reply && !runningTools) {
-        const Provider p = loadProvider();
-        statusLabel->setText(p.model.isEmpty() ? tr("No model set") : p.model);
+    if (!busy) {
+        const AiClient::Provider p = AiClient::load();
+        QString status = p.model.isEmpty() ? tr("No model set") : p.model;
+        if (!usageText.isEmpty())
+            status += " · " + usageText;
+        statusLabel->setText(status);
+        statusLabel->setToolTip(status);
     }
 }
 
@@ -774,6 +973,7 @@ void AiChatDock::setBusy(bool busy)
     stopButton->setEnabled(busy);
     insertButton->setEnabled(!busy);
     clearButton->setEnabled(!busy);
+    historyButton->setEnabled(!busy);
     if (busy && !runningTools)
         statusLabel->setText(tr("Generating..."));
 }

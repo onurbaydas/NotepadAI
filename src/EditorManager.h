@@ -41,6 +41,10 @@ public:
 
     void manageEditor(ScintillaNext *editor);
 
+    // Default (light) editor colours; the dark theme is applied on top when the language is set
+    void applyColors(ScintillaNext *editor);
+    QList<QPointer<ScintillaNext>> getEditors();
+
 signals:
     void editorCreated(ScintillaNext *editor);
     void editorClosed(ScintillaNext *editor);
@@ -48,7 +52,6 @@ signals:
 private:
     void setupEditor(ScintillaNext *editor);
     void purgeOldEditorPointers();
-    QList<QPointer<ScintillaNext>> getEditors();
     int detectEOLMode(ScintillaNext *editor) const;
 
     QList<QPointer<ScintillaNext>> editors;

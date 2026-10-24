@@ -15,6 +15,9 @@ Always rebuild after a change and fix every compiler error before finishing. Hea
 ## Layout
 
 - `src/dialogs/MainWindow.cpp` — main window; docks are created and added to the View menu in its constructor.
+- `src/AiClient.*` — provider settings (`AI/` QSettings group), settings dialog, OpenRouter PKCE browser login, non-streaming `complete()` used by inline features.
+- `src/AiInlineAssist.*` — Ctrl+I inline edit and ghost-text autocomplete (Scintilla EOL annotations + annotations, Tab accepts).
+- `src/DarkTheme.*` — Fusion dark palette, extra style sheet, and conversion of lexer styles to dark (called at the end of `setEditorLanguage`). Light colours live in `EditorManager::applyColors()`.
 - `src/AiAgentTools.*` — agent tools (list/read/search/edit/write files, run_command), path sandboxing to the workspace root, diff approval dialog.
 - `src/docks/` — dock panels. `AiChatDock.*` is the AI assistant (chat UI, streaming, agent loop); `FolderAsWorkspaceDock.*` is the file tree.
 - `src/ScintillaNext.*` — editor widget (Scintilla). Use `getSelText()`, `getText(textLength() + 1)`, `replaceSel()`. Note `ScintillaEdit::setFocus(bool)` shadows `QWidget::setFocus()`; call `editor->QWidget::setFocus()`.

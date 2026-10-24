@@ -21,7 +21,10 @@
 #include <QJsonObject>
 #include <QObject>
 
+#include <functional>
+
 class MainWindow;
+class QWidget;
 
 // The tools the AI agent can call: explore the workspace, edit files
 // (after the user approves a diff) and run shell commands (after approval).
@@ -49,6 +52,15 @@ public:
     // Unified diff rendered as HTML, used by the approval dialog.
     static QString diffHtml(const QString &oldText, const QString &newText);
 
+    // Modal Accept/Reject dialog showing the given HTML.
+    static bool askApproval(QWidget *parent, const QString &title, const QString &html);
+
+    // Called before the agent changes a file, with its current state, so it can be restored later.
+    std::function<void(const QString &path, bool existed, const QString &content)> beforeChange;
+
+    // Puts a file back to a recorded state (deletes it if it did not exist).
+    bool restoreFile(const QString &absolutePath, bool existed, const QString &content);
+
 private:
     Result listFiles(const QJsonObject &input);
     Result readFile(const QJsonObject &input);
@@ -61,7 +73,7 @@ private:
     QString relativePath(const QString &absolutePath) const;
     bool readText(const QString &absolutePath, QString *text, QString *error) const;
     Result applyChange(const QString &absolutePath, const QString &oldText, const QString &newText, bool isNew, bool autoApprove);
-    bool askApproval(const QString &title, const QString &html);
+    QString writeContent(const QString &absolutePath, const QString &text, bool openIfClosed);
 
     MainWindow *window;
 };

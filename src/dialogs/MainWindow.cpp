@@ -64,6 +64,13 @@
 #include "EditorInspectorDock.h"
 #include "FolderAsWorkspaceDock.h"
 #include "AiChatDock.h"
+#include "AiClient.h"
+#include "AiInlineAssist.h"
+#include "DarkTheme.h"
+
+#include <QSettings>
+#include <QSignalBlocker>
+#include "EditorManager.h"
 #include "SearchResultsDock.h"
 #include "DebugLogDock.h"
 #include "FileListDock.h"
@@ -1009,6 +1016,46 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
     ui->menuView->addAction(aiChatDock->toggleViewAction());
     resizeDocks({fawDock, aiChatDock}, {220, 360}, Qt::Horizontal);
 
+    AiInlineAssist *inlineAssist = new AiInlineAssist(this);
+    for (ScintillaNext *editor : app->getEditorManager()->getEditors()) {
+        if (editor)
+            inlineAssist->watchEditor(editor);
+    }
+    connect(app->getEditorManager(), &EditorManager::editorCreated, inlineAssist, &AiInlineAssist::watchEditor);
+
+    QMenu *aiMenu = new QMenu(tr("&AI"), this);
+    ui->menuBar->insertMenu(ui->menuHelp->menuAction(), aiMenu);
+    aiMenu->addAction(aiChatDock->toggleViewAction());
+    QAction *focusChat = aiMenu->addAction(tr("Ask AI (Focus Chat)"), aiChatDock, &AiChatDock::focusInput);
+    focusChat->setShortcut(QKeySequence("Ctrl+L"));
+    aiMenu->addAction(inlineAssist->inlineEditAction());
+    aiMenu->addSeparator();
+    aiMenu->addAction(inlineAssist->autocompleteAction());
+    aiMenu->addSeparator();
+    aiMenu->addAction(tr("AI Settings..."), this, [this]() { AiClient::showSettings(this); });
+    connect(aiMenu, &QMenu::aboutToShow, inlineAssist, [inlineAssist]() {
+        QSignalBlocker blocker(inlineAssist->autocompleteAction());
+        inlineAssist->autocompleteAction()->setChecked(QSettings().value("AI/Autocomplete", true).toBool());
+    });
+
+    QAction *darkThemeAction = new QAction(tr("Dark Theme"), this);
+    darkThemeAction->setCheckable(true);
+    darkThemeAction->setChecked(DarkTheme::isEnabled());
+    ui->menuView->addSeparator();
+    ui->menuView->addAction(darkThemeAction);
+    connect(darkThemeAction, &QAction::toggled, this, [this](bool checked) {
+        DarkTheme::setEnabled(checked);
+        DarkTheme::applyToApplication();
+        applyStyleSheet();
+        for (ScintillaNext *editor : this->app->getEditorManager()->getEditors()) {
+            if (editor) {
+                this->app->getEditorManager()->applyColors(editor);
+                this->app->setEditorLanguage(editor, editor->languageName);
+            }
+        }
+    });
+    DarkTheme::applyToApplication();
+
     connect(app->getSettings(), &ApplicationSettings::showMenuBarChanged, this, [this](bool showMenuBar) {
         // Don't 'hide' it, else the actions won't be enabled
         ui->menuBar->setMaximumHeight(showMenuBar ? QWIDGETSIZE_MAX : 0);
@@ -1894,7 +1941,7 @@ void MainWindow::applyStyleSheet()
         custom.close();
     }
 
-    setStyleSheet(sheet);
+    setStyleSheet(sheet + DarkTheme::styleSheet());
 }
 
 void MainWindow::setLanguage(ScintillaNext *editor, const QString &languageName)

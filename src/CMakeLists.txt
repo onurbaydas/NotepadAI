@@ -54,7 +54,13 @@ qt_add_executable(NotepadNext
 	scripts.qrc
 	AiAgentTools.cpp
 	AiAgentTools.h
+	AiClient.cpp
+	AiClient.h
+	AiInlineAssist.cpp
+	AiInlineAssist.h
 	ApplicationSettings.cpp
+	DarkTheme.cpp
+	DarkTheme.h
 	ColorPickerDelegate.cpp
 	ComboBoxDelegate.cpp
 	Converter.cpp

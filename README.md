@@ -1,48 +1,69 @@
 # NotepadAI
 
-**Notepad++ hissinde, AI asistanı ve dosya yöneticisi gömülü, hafif ve çapraz platform (Windows / Linux / macOS) kod editörü.**
+**Notepad++ hissinde, AI agent'ı ve dosya yöneticisi gömülü, hafif ve çapraz platform (Windows / Linux / macOS) kod editörü.**
 
 [Notepad Next](https://github.com/dail8859/NotepadNext) (Notepad++'ın Qt ile yeniden yazılmış hali) üzerine kurulmuş bir forktur. Amaç: Antigravity / Cursor gibi AI IDE'lerin işlevini, Electron ağırlığı olmadan, Notepad++ hızında sunmak.
 
 ![NotepadAI](doc/notepadai-screenshot.png)
 
+## Windows'a kurulum
+
+1. **[Releases](https://github.com/onurbaydas/NotepadAI/releases/latest)** sayfasından `NotepadAI-...-Windows-Setup.exe` dosyasını indir
+   (ARM işlemcili bilgisayarlar için `...-Windows-ARM64-Setup.exe`, kurulumsuz kullanım için `...-Windows-Portable.zip`)
+2. Çalıştır. Windows **"Windows kişisel bilgisayarınızı korudu"** uyarısı verirse: **Ek bilgi → Yine de çalıştır**
+   (uygulama henüz kod imzalı değil, bu yüzden SmartScreen tanımıyor)
+3. Kurulum bitince Başlat menüsünden **NotepadAI**'ı aç
+4. *File → Open Folder as Workspace* ile proje klasörünü aç
+5. Sağdaki AI panelinde **Settings** → **Sign in with OpenRouter (browser)** ya da kendi API anahtarın (aşağıya bak)
+
+Linux için `.AppImage`, macOS için `.dmg` dosyaları da aynı sayfada.
+
 ## Özellikler
 
 - 🤖 **Agent modu** (Cursor / Antigravity gibi): AI projeyi kendisi keşfeder, dosyaları okur, düzenler, yeni dosya oluşturur ve komut çalıştırır
   - Araçlar: `list_files`, `read_file`, `search`, `edit_file`, `write_file`, `run_command`
-  - Her dosya değişikliği önce **renkli diff** olarak gösterilir, **Accept / Reject** ile onaylarsın (istersen *Auto-apply edits* ile otomatik)
-  - Terminal komutları **her zaman** onay ister
-  - AI sadece açık çalışma klasörünün içine erişebilir, dışına yazamaz
-  - Açık dosyalardaki değişiklikler `Ctrl+Z` ile geri alınabilir
-- 💬 **Sohbet modu**: seçili kodu/dosyayı bağlam olarak gönderme, **Explain**, **Insert Code**
-- 🔌 **Claude** (Anthropic), **OpenAI** ve tüm **OpenAI-uyumlu** servisler: **Ollama**, LM Studio, OpenRouter, Groq... Yanıtlar canlı akar
+  - Her dosya değişikliği önce **renkli diff** olarak gösterilir, **Accept / Reject** ile onaylarsın (istersen *Auto-apply edits*)
+  - Terminal komutları **her zaman** onay ister; AI sadece çalışma klasörünün içine erişebilir
+- ↶ **Checkpoint**: her mesajın altındaki *Restore checkpoint* ile o mesajdan sonra AI'ın değiştirdiği tüm dosyalar geri alınır, mesaj düzenlenip tekrar gönderilebilir
+- ✏️ **Satır içi düzenleme** (`Ctrl+I`): kodu seç, ne istediğini yaz, diff'i onayla
+- 👻 **Yazarken öneri** (ghost text): yazmayı bırakınca gri öneri çıkar, **Tab** ile kabul, yazmaya devam edersen kaybolur
+- 💬 **Sohbet geçmişi**: sohbetler otomatik kaydedilir, **History** ile geri açılır
+- 🧠 **Bağlam yönetimi**: uzun agent oturumlarında eski araç çıktıları otomatik kısaltılır, gerekirse en eski mesajlar atılır
+- 💸 **Prompt caching** (Claude): tekrar gönderilen bağlam önbellekten okunur, maliyet ve gecikme ciddi düşer; kullanılan token sayısı panelin üstünde görünür
+- 🌙 **Koyu tema** (varsayılan, *View → Dark Theme* ile kapatılabilir); tüm diller için sözdizimi renkleri otomatik koyulaştırılır
+- 🔌 **Claude**, **OpenAI**, **OpenRouter** (tarayıcıdan giriş), **Ollama** ve tüm OpenAI-uyumlu servisler; yanıtlar canlı akar
 - 📁 **Dosya yöneticisi** (Folder as Workspace) varsayılan olarak açık
 - ✍️ Notepad++'tan alışık olunan her şey: Scintilla editörü, sözdizimi renklendirme, makrolar, çoklu imleç, arama/değiştirme, Lua betikleri
 
-## Kullanım
+## Kısayollar
 
-1. *File → Open Folder as Workspace* ile proje klasörünü aç
-2. AI panelinde (`View → AI Assistant`, `Ctrl+Shift+I`) **Settings** → sağlayıcı ve API anahtarı
-3. Ne istediğini yaz, `Ctrl+Enter`: *"login formuna e-posta doğrulaması ekle ve testleri çalıştır"*
+| Kısayol | İşlev |
+|---|---|
+| `Ctrl+L` | AI sohbet kutusuna git |
+| `Ctrl+I` | Seçili kodu AI ile düzenle |
+| `Tab` | Gri öneriyi kabul et |
+| `Ctrl+Enter` | Sohbette mesaj gönder |
+| `Ctrl+Shift+I` | AI panelini aç/kapat |
 
-> Agent modu için araç çağırmayı (tool calling) destekleyen bir model gerekir: Claude, GPT-4o/4.1, Ollama'da `qwen2.5-coder`, `llama3.1` vb.
+Hepsi menü çubuğundaki **AI** menüsünde de var.
 
-## AI Ayarları
+## AI'a bağlanma
 
-Panelde **Settings** düğmesine tıklayın:
+**AI → AI Settings** (veya paneldeki **Settings**):
 
-| Sağlayıcı | Provider | Base URL | Model örneği |
-|---|---|---|---|
-| Claude | Anthropic | `https://api.anthropic.com` | `claude-sonnet-5-5` |
-| OpenAI | OpenAI-compatible | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| Ollama (yerel, ücretsiz) | OpenAI-compatible | `http://localhost:11434/v1` | `qwen2.5-coder` |
-| OpenRouter | OpenAI-compatible | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-5-5` |
+| Yöntem | Nasıl | Not |
+|---|---|---|
+| **OpenRouter (tarayıcıdan giriş)** | *Sign in with OpenRouter* → tarayıcıda giriş yap → otomatik bağlanır | API anahtarı kopyalamak yok. Claude, GPT, Gemini, DeepSeek... hepsi tek hesapla. Kullandıkça öde (kredi yüklenir) |
+| Claude | Provider: Anthropic, anahtar: [console.anthropic.com](https://console.anthropic.com) | Prompt caching ile en ucuz Claude kullanımı |
+| OpenAI | Provider: OpenAI-compatible, URL `https://api.openai.com/v1` | |
+| **Ollama (yerel, ücretsiz)** | [ollama.com](https://ollama.com)'u kur, `ollama pull qwen2.5-coder`, URL `http://localhost:11434/v1` | İnternet ve hesap gerekmez; hız bilgisayarına bağlı |
 
-> ⚠️ API anahtarı yerel ayar dosyasında düz metin olarak saklanır (`~/.config/NotepadAI/NotepadAI.ini`, Windows'ta `%APPDATA%\NotepadAI\NotepadAI.ini`).
+- **Autocomplete model**: yazarken öneriler için hızlı/ucuz model (Claude için varsayılan `claude-haiku-5-5`). Boş bırakılırsa ana model kullanılır.
+- Agent modu için araç çağırmayı (tool calling) destekleyen bir model gerekir.
 
-## İndirme
+> ℹ️ **Claude Pro/Max veya ChatGPT Plus aboneliğiyle giriş** yapılamıyor: Anthropic ve OpenAI, tüketici aboneliklerinin üçüncü parti uygulamalarda kullanılmasına izin vermiyor. Tarayıcıdan giriş isteyenler için en iyi yol OpenRouter.
 
-Her push'ta GitHub Actions; Windows, Linux (AppImage) ve macOS için derlenmiş sürümleri üretir: **Actions → son çalışma → Artifacts**.
+> ⚠️ API anahtarı yerel ayar dosyasında düz metin olarak saklanır (Windows'ta `%APPDATA%\NotepadAI\NotepadAI.ini`).
 
 ## Kaynaktan derleme
 
@@ -61,14 +82,15 @@ Windows/macOS için ayrıntılı talimatlar: [doc/Building.md](doc/Building.md)
 
 ## Yol Haritası
 
-- [x] Agent modu: dosya okuma/yazma, arama ve terminal komutu (onaylı)
-- [x] Değişiklikleri **diff** olarak gösterip onaylayarak uygulama
-- [ ] Checkpoint: agent'ın tüm değişikliklerini tek tıkla geri alma
-- [ ] Satır içi (inline) AI düzenleme: seçimi işaretle → `Ctrl+K` → talimat yaz
-- [ ] Çoklu dosya bağlamı (açık sekmeler / klasör)
-- [ ] Kod tamamlama (ghost text)
+- [x] Agent modu, diff onayı, checkpoint
+- [x] Satır içi düzenleme, yazarken öneri
+- [x] Sohbet geçmişi, bağlam yönetimi, prompt caching
+- [x] Koyu tema, OpenRouter ile tarayıcıdan giriş
+- [ ] `@dosya` ile bağlam ekleme, proje kuralları (`AGENTS.md`)
+- [ ] Gömülü terminal paneli
+- [ ] LSP (tanıma git, hata altı çizgileri), Git arayüzü
 - [ ] API anahtarını işletim sisteminin anahtar zincirinde saklama
-- [ ] Koyu tema
+- [ ] Türkçe arayüz
 
 ## Lisans
 
