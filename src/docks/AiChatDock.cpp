@@ -603,7 +603,7 @@ void AiChatDock::requestFinished()
             if (pending.name.isEmpty())
                 continue;
             QJsonParseError parseError;
-            const QJsonDocument args = QJsonDocument::fromJson(pending.arguments.isEmpty() ? "{}" : pending.arguments.toUtf8(), &parseError);
+            const QJsonDocument args = QJsonDocument::fromJson(pending.arguments.isEmpty() ? QByteArray("{}") : pending.arguments.toUtf8(), &parseError);
             QJsonObject call{
                 {"id", pending.id.isEmpty() ? QString("call_%1_%2_%3").arg(nextTurn).arg(agentSteps).arg(generatedId++) : pending.id},
                 {"name", pending.name},
