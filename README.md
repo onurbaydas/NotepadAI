@@ -1,79 +1,65 @@
-# Notepad Next
+# NotepadAI
 
-![Build Notepad Next](https://github.com/dail8859/NotepadNext/workflows/Build%20Notepad%20Next/badge.svg)
+**Notepad++ hissinde, AI asistanı ve dosya yöneticisi gömülü, hafif ve çapraz platform (Windows / Linux / macOS) kod editörü.**
 
-A cross-platform, reimplementation of Notepad++.
+[Notepad Next](https://github.com/dail8859/NotepadNext) (Notepad++'ın Qt ile yeniden yazılmış hali) üzerine kurulmuş bir forktur. Amaç: Antigravity / Cursor gibi AI IDE'lerin işlevini, Electron ağırlığı olmadan, Notepad++ hızında sunmak.
 
-Though the application overall is stable and usable, it should not be considered safe for critically important work.
+![NotepadAI](doc/notepadai-screenshot.png)
 
-There are numerous bugs and half working implementations. Pull requests are greatly appreciated.
+## Özellikler
 
-![screenshot](/doc/screenshot.png)
+- 🤖 **AI Asistan paneli** (`View → AI Assistant`, `Ctrl+Shift+I`)
+  - **Claude** (Anthropic), **OpenAI** ve tüm **OpenAI-uyumlu** servisler: **Ollama**, LM Studio, OpenRouter, Groq...
+  - Yanıtlar canlı akar (streaming)
+  - Seçili kod ya da açık dosya otomatik olarak bağlam olarak gönderilir
+  - **Explain**: seçili kodu tek tıkla açıklatır
+  - **Insert Code**: yanıttaki kodu editöre ekler (seçim varsa onun yerine yazar)
+  - `Ctrl+Enter` ile gönderme, **Stop** ile durdurma, **New Chat** ile sıfırlama
+- 📁 **Dosya yöneticisi** (Folder as Workspace) varsayılan olarak açık
+- ✍️ Notepad++'tan alışık olunan her şey: Scintilla editörü, sözdizimi renklendirme, makrolar, çoklu imleç, arama/değiştirme, Lua betikleri
 
-# Installation
+## AI Ayarları
 
-Packages are available for Windows, Linux, and MacOS.
+Panelde **Settings** düğmesine tıklayın:
 
-Below are the supported distribution mechanisms. There may be other ways to download/install the application, but this project will likely not be able to offer any support for those since they are made available by other individuals.
+| Sağlayıcı | Provider | Base URL | Model örneği |
+|---|---|---|---|
+| Claude | Anthropic | `https://api.anthropic.com` | `claude-sonnet-5-5` |
+| OpenAI | OpenAI-compatible | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| Ollama (yerel, ücretsiz) | OpenAI-compatible | `http://localhost:11434/v1` | `qwen2.5-coder` |
+| OpenRouter | OpenAI-compatible | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-5-5` |
 
-## Windows
-Windows packages are available as an installer or a stand-alone zip file on the [release](https://github.com/dail8859/NotepadNext/releases) page. The installer provides additional components such as an auto-updater and Windows context menu integration. You can easily install it with Winget:
+> ⚠️ API anahtarı yerel ayar dosyasında düz metin olarak saklanır (`~/.config/NotepadAI/NotepadAI.ini`, Windows'ta `%APPDATA%\NotepadAI\NotepadAI.ini`).
 
-```powershell
-winget install dail8859.NotepadNext
-```
+## İndirme
 
-## Linux
-Linux packages can be obtained by downloading the stand-alone AppImage on the [release](https://github.com/dail8859/NotepadNext/releases) page or by installing the [flatpak](https://flathub.org/apps/details/com.github.dail8859.NotepadNext) by executing:
+Her push'ta GitHub Actions; Windows, Linux (AppImage) ve macOS için derlenmiş sürümleri üretir: **Actions → son çalışma → Artifacts**.
 
-```bash
-flatpak install flathub com.github.dail8859.NotepadNext
-```
+## Kaynaktan derleme
 
-If you are using Ubuntu and prefer an up-to-date deb version, you can use the [PPA supporting Ubuntu 22.04 and newer](https://launchpad.net/~quentiumyt/+archive/ubuntu/notepadnext) provided by
-[Quentin Lienhardt](https://github.com/QuentiumYT). You can add it by executing:
-
-```bash
-sudo add-apt-repository ppa:quentiumyt/notepadnext
-sudo apt update
-sudo apt install notepadnext
-```
-
-## MacOS
-MacOS disk images can be downloaded from the [release](https://github.com/dail8859/NotepadNext/releases) page.
-
-It can also be installed using brew:
-```bash
-brew tap dail8859/notepadnext
-brew install notepadnext
-```
-
-If you receive warnings that Notepad Next is "damaged", this is an Apple complaining that I have not paid them money to "trust" me. You can bypass this by running:
+Gerekenler: Qt 6.5+ (Core, Gui, Widgets, Network, PrintSupport, Core5Compat), CMake 3.21+, C++20 derleyici.
 
 ```bash
-xattr -d com.apple.quarantine /Applications/NotepadNext.app
+# Ubuntu / Debian
+sudo apt install qt6-base-dev qt6-base-private-dev qt6-5compat-dev qt6-tools-dev qt6-tools-dev-tools qt6-l10n-tools libgl-dev ninja-build cmake g++
+
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+ninja -C build
+./build/src/NotepadNext
 ```
 
-#### MacOS Tweaks
+Windows/macOS için ayrıntılı talimatlar: [doc/Building.md](doc/Building.md)
 
-By default, MacOS enables font smoothing which causes text to appear quite differently from the Windows version. This can be disabled system-wide using the following command:
+## Yol Haritası
 
-```bash
-defaults -currentHost write -g AppleFontSmoothing -int 0
-```
+- [ ] Yanıttaki değişiklikleri **diff** olarak gösterip onaylayarak uygulama
+- [ ] Satır içi (inline) AI düzenleme: seçimi işaretle → `Ctrl+K` → talimat yaz
+- [ ] Çoklu dosya bağlamı (açık sekmeler / klasör)
+- [ ] Agent modu: dosya okuma/yazma ve terminal komutu çalıştırma (onaylı)
+- [ ] Kod tamamlama (ghost text)
+- [ ] API anahtarını işletim sisteminin anahtar zincirinde saklama
+- [ ] Koyu tema
 
-A restart is required for this to take effect.
+## Lisans
 
-# Translations
-Translations are contributed by the community. All translations are managed using Crowdin at `https://crowdin.com/project/notepadnext`. If there is a language missing you would like to contribute, feel free to start a discussion on Crowdin.
-
-# Development
-Current development is done using QtCreator with the Microsoft Visual C++ (msvc) compiler. Qt 6.5 is the currently supported Qt version. Older versions of Qt are likely to work but are not tested. Any fixes for older versions will be accepted as long as they do not introduce complex fixes. This application is also known to build successfully on various Linux distributions and macOS. Other platforms/compilers should be usable with minor modifications.
-
-If you are familiar with building C++ Qt desktop applications with Qt Creator, then this should be as simple as opening `CMakeLists` and build/run the project.
-
-If you are new to building C++ Qt desktop applications, there is a more detailed guide [here](/doc/Building.md).
-
-
-# License
-This code is released under the [GNU General Public License version 3](https://www.gnu.org/licenses/gpl-3.0.txt).
+GPL-3.0. Orijinal Notepad Next © Justin Dailey ve katkıda bulunanlar. Orijinal README: [doc/NotepadNext-README.md](doc/NotepadNext-README.md)

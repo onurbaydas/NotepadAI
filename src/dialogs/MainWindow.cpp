@@ -63,6 +63,7 @@
 #include "LanguageInspectorDock.h"
 #include "EditorInspectorDock.h"
 #include "FolderAsWorkspaceDock.h"
+#include "AiChatDock.h"
 #include "SearchResultsDock.h"
 #include "DebugLogDock.h"
 #include "FileListDock.h"
@@ -913,7 +914,8 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
         QMessageBox::about(this, QString(),
                             QStringLiteral("<h3>%1 v%2 %3</h3>"
                                     "<p>%4</p>"
-                                    "<p><a href=\"https://github.com/dail8859/NotepadNext\">Notepad Next Home Page</a></p>"
+                                    "<p><a href=\"https://github.com/onurbaydas/NotepadAI\">NotepadAI Home Page</a><br>"
+                                    "Based on <a href=\"https://github.com/dail8859/NotepadNext\">Notepad Next</a></p>"
                                     R"(<p>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.</p> <p>This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.</p> <p>You should have received a copy of the GNU General Public License along with this program. If not, see &lt;<a href="https://www.gnu.org/licenses/">https://www.gnu.org/licenses/</a>&gt;.</p>)")
                                 .arg(QApplication::applicationDisplayName(), APP_VERSION, APP_DISTRIBUTION, QStringLiteral(APP_COPYRIGHT).toHtmlEscaped()));
     });
@@ -992,7 +994,6 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
                                 });
 
     FolderAsWorkspaceDock *fawDock = new FolderAsWorkspaceDock(this);
-    fawDock->hide();
     addDockWidget(Qt::LeftDockWidgetArea, fawDock);
     ui->menuView->addAction(fawDock->toggleViewAction());
     connect(fawDock, &FolderAsWorkspaceDock::fileDoubleClicked, this, &MainWindow::openFile);
@@ -1001,6 +1002,12 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
     fileListDock->hide();
     addDockWidget(Qt::LeftDockWidgetArea, fileListDock);
     ui->menuView->addAction(fileListDock->toggleViewAction());
+
+    AiChatDock *aiChatDock = new AiChatDock(this);
+    addDockWidget(Qt::RightDockWidgetArea, aiChatDock);
+    aiChatDock->toggleViewAction()->setShortcut(QKeySequence("Ctrl+Shift+I"));
+    ui->menuView->addAction(aiChatDock->toggleViewAction());
+    resizeDocks({fawDock, aiChatDock}, {220, 360}, Qt::Horizontal);
 
     connect(app->getSettings(), &ApplicationSettings::showMenuBarChanged, this, [this](bool showMenuBar) {
         // Don't 'hide' it, else the actions won't be enabled
@@ -2077,7 +2084,8 @@ void MainWindow::restoreWindowState()
 {
     ApplicationSettings *settings = app->getSettings();
 
-    restoreGeometry(settings->value("MainWindow/geometry").toByteArray());
+    if (!restoreGeometry(settings->value("MainWindow/geometry").toByteArray()))
+        resize(1280, 800);
     restoreState(settings->value("MainWindow/windowState").toByteArray());
 
     // Always hide the dock no matter how the application was closed
@@ -2186,7 +2194,7 @@ void MainWindow::checkForUpdates(bool silent)
 #ifdef Q_OS_WIN
     qInfo(Q_FUNC_INFO);
 
-    QString url = "https://github.com/dail8859/NotepadNext/raw/master/updates.json";
+    QString url = "https://github.com/onurbaydas/NotepadAI/raw/main/updates.json";
 
 #if defined(_M_ARM64) || defined(__aarch64__)
     // updates.json only points to the x64 installer, so ARM64 builds check

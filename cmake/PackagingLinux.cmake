@@ -13,7 +13,7 @@ set(APPIMAGE_ENV_VARS
 if(DEFINED ENV{QMAKE} AND NOT "$ENV{QMAKE}" STREQUAL "")
     set(APPIMAGE_QMAKE "$ENV{QMAKE}")
 else()
-    find_program(APPIMAGE_QMAKE NAMES qmake)
+    find_program(APPIMAGE_QMAKE NAMES qmake6 qmake)
 endif()
 
 if(NOT APPIMAGE_QMAKE)

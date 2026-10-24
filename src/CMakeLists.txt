@@ -155,6 +155,8 @@ qt_add_executable(NotepadNext
 	docks/FileListDock.cpp
 	docks/FileListDock.h
 	docks/FileListDock.ui
+	docks/AiChatDock.cpp
+	docks/AiChatDock.h
 	docks/FolderAsWorkspaceDock.cpp
 	docks/FolderAsWorkspaceDock.h
 	docks/FolderAsWorkspaceDock.ui
