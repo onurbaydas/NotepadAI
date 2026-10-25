@@ -26,6 +26,9 @@
 
 class AiAgentTools;
 class AiChatView;
+class AiReviewManager;
+class QListWidget;
+class QVBoxLayout;
 class MainWindow;
 class QComboBox;
 class QFrame;
@@ -49,6 +52,7 @@ public:
 
     void focusInput();
     void explainSelection();
+    void setReviewManager(AiReviewManager *manager);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -73,6 +77,12 @@ private:
 
     QWidget *createTitleBar();
     QFrame *createComposer();
+    QFrame *createReviewStrip();
+    void updateReviewStrip();
+    void updateMentionPopup();
+    void insertMention(const QString &path);
+    QString mentionedFiles(const QString &question) const;
+    QString projectRules() const;
     void updateContextChip();
     void updateComposerHeight();
     void updateModelButton();
@@ -115,6 +125,12 @@ private:
     QLabel *contextChip;
     QToolButton *contextToggle;
     QTimer *contextTimer;
+    QListWidget *mentionList;
+    QStringList mentionCandidates;
+    AiReviewManager *reviews = nullptr;
+    QFrame *reviewStrip;
+    QLabel *reviewTitle;
+    QVBoxLayout *reviewFiles;
     bool contextEnabled = true;
 
     // Provider-neutral conversation:

@@ -21,6 +21,7 @@
 #include <QPointer>
 
 class AiClient;
+class AiReviewManager;
 class MainWindow;
 class QAction;
 class QNetworkReply;
@@ -41,6 +42,7 @@ public:
     QAction *autocompleteAction() const { return completeAction; }
 
     void watchEditor(ScintillaNext *editor);
+    void setReviewManager(AiReviewManager *manager) { reviews = manager; }
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -51,11 +53,12 @@ private:
     void scheduleCompletion(ScintillaNext *editor);
     void requestCompletion();
     void showSuggestion(ScintillaNext *editor, int pos, const QString &text);
-    void acceptSuggestion();
+    void acceptSuggestion(bool wholeSuggestion = true);
     void dismissSuggestion();
 
     MainWindow *window;
     AiClient *client;
+    AiReviewManager *reviews = nullptr;
     QAction *editAction;
     QAction *completeAction;
 

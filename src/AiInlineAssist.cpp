@@ -19,6 +19,7 @@
 
 #include "AiAgentTools.h"
 #include "AiClient.h"
+#include "AiReviewManager.h"
 #include "MainWindow.h"
 #include "ScintillaNext.h"
 
@@ -51,10 +52,8 @@ const int EDIT_CONTEXT_BEFORE = 3000;
 const int EDIT_CONTEXT_AFTER = 2000;
 const int COMPLETE_CONTEXT_BEFORE = 4000;
 const int COMPLETE_CONTEXT_AFTER = 1500;
-const int COMPLETE_DELAY_MS = 600;
+const int COMPLETE_DELAY_MS = 350;
 const int COMPLETE_MAX_LINES = 8;
-
-const char *GHOST_STYLE_PROPERTY = "ai_ghost_style";
 
 QString stripCodeFences(QString text)
 {
@@ -120,6 +119,11 @@ bool AiInlineAssist::eventFilter(QObject *obj, QEvent *event)
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
         if (keyEvent->key() == Qt::Key_Tab && keyEvent->modifiers() == Qt::NoModifier) {
             acceptSuggestion();
+            return true;
+        }
+        // Ctrl+Right takes the suggestion one word at a time
+        if (keyEvent->key() == Qt::Key_Right && keyEvent->modifiers() == Qt::ControlModifier) {
+            acceptSuggestion(false);
             return true;
         }
         const int key = keyEvent->key();
@@ -209,20 +213,23 @@ void AiInlineAssist::inlineEdit()
         replacement.chop(1);
 
     QPointer<ScintillaNext> target = editor;
-    if (!AiAgentTools::askApproval(window, tr("AI Edit: %1").arg(editor->getName()), AiAgentTools::diffHtml(original, replacement)))
-        return;
     if (!target || textRange(target, start, end) != original) {
         QMessageBox::warning(window, tr("AI Edit"), tr("The text changed while the AI was working. Try again."));
         return;
     }
 
+    // Apply in place and show the change as an in-editor diff to keep or undo
+    const QString wholeTextBefore = QString::fromUtf8(target->getText(target->textLength() + 1));
     const QByteArray data = replacement.toUtf8();
     target->beginUndoAction();
     target->setTargetRange(start, end);
     target->replaceTarget(data.size(), data.constData());
     target->endUndoAction();
-    target->setSel(start, start + data.size());
+    target->gotoPos(start);
     target->QWidget::setFocus();
+
+    if (reviews)
+        reviews->startReview(target, wholeTextBefore);
 }
 
 void AiInlineAssist::scheduleCompletion(ScintillaNext *editor)
@@ -249,6 +256,9 @@ void AiInlineAssist::requestCompletion()
 
     const AiClient::Provider provider = AiClient::load();
     if (!AiClient::isConfigured(provider))
+        return;
+    // Ghost text and the review's removed-line annotations share the annotation area
+    if (reviews && reviews->isUnderReview(editor))
         return;
 
     // Only suggest at the end of a line, where the ghost text can be shown in place
@@ -287,22 +297,8 @@ void AiInlineAssist::showSuggestion(ScintillaNext *editor, int pos, const QStrin
 {
     dismissSuggestion();
 
-    // A dedicated style for the grey text, kept separate from the lexer's styles
-    QVariant styleProperty = editor->QObject::property(GHOST_STYLE_PROPERTY);
-    if (!styleProperty.isValid()) {
-        styleProperty = static_cast<int>(editor->allocateExtendedStyles(1));
-        editor->QObject::setProperty(GHOST_STYLE_PROPERTY, styleProperty);
-    }
-    const int style = styleProperty.toInt();
-    editor->styleSetFore(style, 0x8C8C8C);
-    editor->styleSetBack(style, editor->styleBack(STYLE_DEFAULT));
-    editor->styleSetItalic(style, true);
-    editor->styleSetFont(style, editor->styleFont(STYLE_DEFAULT).constData());
-    editor->styleSetSize(style, editor->styleSize(STYLE_DEFAULT));
-    editor->eOLAnnotationSetStyleOffset(style);
-    editor->annotationSetStyleOffset(style);
-    editor->eOLAnnotationSetVisible(EOLANNOTATION_STANDARD);
-    editor->annotationSetVisible(ANNOTATION_STANDARD);
+    // Style 0 of the shared annotation styles is the grey ghost text
+    AiReviewManager::annotationStyles(editor);
 
     const int line = editor->lineFromPosition(pos);
     const QStringList lines = text.split('\n');
@@ -321,24 +317,39 @@ void AiInlineAssist::showSuggestion(ScintillaNext *editor, int pos, const QStrin
     ghostText = text;
 }
 
-void AiInlineAssist::acceptSuggestion()
+void AiInlineAssist::acceptSuggestion(bool wholeSuggestion)
 {
     QPointer<ScintillaNext> editor = ghostEditor;
     const int pos = ghostPos;
-    const QByteArray data = ghostText.toUtf8();
+    QString text = ghostText;
+    QString rest;
+    if (!wholeSuggestion) {
+        static const QRegularExpression word("^(\\s*[\\w]+|\\s*[^\\w\\s]+|\\s+)");
+        const QRegularExpressionMatch match = word.match(text);
+        if (match.hasMatch()) {
+            rest = text.mid(match.capturedLength());
+            text = match.captured(1);
+        }
+    }
+
+    const QByteArray data = text.toUtf8();
     dismissSuggestion();
     if (!editor)
         return;
 
     editor->insertText(pos, data.constData());
     editor->gotoPos(pos + data.size());
+
+    // Keep showing what is left of the suggestion
+    if (!rest.isEmpty() && !text.contains('\n'))
+        showSuggestion(editor, pos + data.size(), rest);
 }
 
 void AiInlineAssist::dismissSuggestion()
 {
     if (ghostEditor) {
-        ghostEditor->eOLAnnotationSetText(ghostLine, "");
-        ghostEditor->annotationSetText(ghostLine, "");
+        ghostEditor->eOLAnnotationSetText(ghostLine, nullptr);
+        ghostEditor->annotationSetText(ghostLine, nullptr);
     }
     ghostEditor = nullptr;
     ghostPos = -1;

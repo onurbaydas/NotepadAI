@@ -144,6 +144,12 @@ QComboBox#modeCombo { border: 1px solid %2; border-radius: 4px; padding: 1px 8px
 QToolButton#sendButton { background-color: %5; color: white; border: none; border-radius: 13px; min-width: 26px; max-width: 26px; min-height: 26px; max-height: 26px; font-weight: bold; }
 QToolButton#sendButton:hover { background-color: %6; }
 QTreeView#workspaceTree { border: none; background-color: %4; }
+#reviewStrip { background-color: %1; border: 1px solid %2; border-radius: 8px; }
+#reviewTitle { font-weight: 600; }
+QToolButton#reviewKeepAll { background-color: #2f8f4e; color: #ffffff; border: none; border-radius: 4px; padding: 3px 10px; }
+QToolButton#reviewKeepAll:hover { background-color: #37a65b; }
+QToolButton#reviewUndoAll { border: 1px solid %2; border-radius: 4px; padding: 3px 10px; }
+QToolButton#reviewFile { color: %3; padding: 2px 4px; }
 )");
 
     if (!isEnabled())

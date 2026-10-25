@@ -66,6 +66,7 @@
 #include "AiChatDock.h"
 #include "AiClient.h"
 #include "AiInlineAssist.h"
+#include "AiReviewManager.h"
 #include "DarkTheme.h"
 
 #include <QSettings>
@@ -1056,7 +1057,11 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
     ui->menuView->addAction(aiChatDock->toggleViewAction());
     resizeDocks({fawDock, aiChatDock}, {220, 360}, Qt::Horizontal);
 
+    AiReviewManager *reviewManager = new AiReviewManager(this);
+    aiChatDock->setReviewManager(reviewManager);
+
     AiInlineAssist *inlineAssist = new AiInlineAssist(this);
+    inlineAssist->setReviewManager(reviewManager);
     for (ScintillaNext *editor : app->getEditorManager()->getEditors()) {
         if (editor)
             inlineAssist->watchEditor(editor);

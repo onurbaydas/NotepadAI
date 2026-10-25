@@ -2346,6 +2346,34 @@ AI'ın çalıştırdığı komutların etkileri (örneğin kurulan paketler) ger
       <source>Send (Enter)</source>
       <translation>Gönder (Enter)</translation>
     </message>
+      <message>
+      <source>Run this command in %1?</source>
+      <translation>%1 klasöründe bu komut çalıştırılsın mı?</translation>
+    </message>
+    <message>
+      <source>Run</source>
+      <translation>Çalıştır</translation>
+    </message>
+    <message>
+      <source>Skip</source>
+      <translation>Atla</translation>
+    </message>
+    <message>
+      <source>Keep all</source>
+      <translation>Hepsini tut</translation>
+    </message>
+    <message>
+      <source>Undo all</source>
+      <translation>Hepsini geri al</translation>
+    </message>
+    <message>
+      <source>%1 file(s) changed - review</source>
+      <translation>%1 dosya değişti - incele</translation>
+    </message>
+    <message>
+      <source>Show the changes in the editor</source>
+      <translation>Değişiklikleri editörde göster</translation>
+    </message>
   </context>
   <context>
     <name>AiChatView</name>
@@ -2672,6 +2700,53 @@ AI'ın çalıştırdığı komutların etkileri (örneğin kurulan paketler) ger
     <message>
       <source>Timed out waiting for the browser.</source>
       <translation>Tarayıcı beklenirken zaman aşımı oldu.</translation>
+    </message>
+  </context>
+  <context>
+    <name>AiReviewManager</name>
+    <message>
+      <source>AI change %1 of %2</source>
+      <translation>AI değişikliği %1 / %2</translation>
+    </message>
+    <message>
+      <source>Previous change</source>
+      <translation>Önceki değişiklik</translation>
+    </message>
+    <message>
+      <source>Next change</source>
+      <translation>Sonraki değişiklik</translation>
+    </message>
+    <message>
+      <source>Keep</source>
+      <translation>Tut</translation>
+    </message>
+    <message>
+      <source>Keep this change</source>
+      <translation>Bu değişikliği tut</translation>
+    </message>
+    <message>
+      <source>Undo</source>
+      <translation>Geri al</translation>
+    </message>
+    <message>
+      <source>Undo this change</source>
+      <translation>Bu değişikliği geri al</translation>
+    </message>
+    <message>
+      <source>Keep file</source>
+      <translation>Dosyayı tut</translation>
+    </message>
+    <message>
+      <source>Keep all changes in this file</source>
+      <translation>Bu dosyadaki tüm değişiklikleri tut</translation>
+    </message>
+    <message>
+      <source>Undo file</source>
+      <translation>Dosyayı geri al</translation>
+    </message>
+    <message>
+      <source>Undo all changes in this file</source>
+      <translation>Bu dosyadaki tüm değişiklikleri geri al</translation>
     </message>
   </context>
 </TS>

@@ -22,6 +22,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDesktopServices>
+#include <QEventLoop>
 #include <QFontDatabase>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -110,6 +111,38 @@ AiChatView::AiChatView(QWidget *parent) :
     liveBox->hide();
     layout->addWidget(liveBox);
 
+    approvalCard = new QFrame(container);
+    approvalCard->setObjectName("approvalCard");
+    QVBoxLayout *approvalLayout = new QVBoxLayout(approvalCard);
+    approvalLayout->setContentsMargins(10, 8, 10, 8);
+    approvalTitle = new QLabel(approvalCard);
+    approvalTitle->setWordWrap(true);
+    approvalDetail = new QLabel(approvalCard);
+    approvalDetail->setObjectName("approvalDetail");
+    approvalDetail->setTextFormat(Qt::PlainText);
+    approvalDetail->setWordWrap(true);
+    approvalDetail->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    approvalDetail->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    QHBoxLayout *approvalButtons = new QHBoxLayout;
+    approvalOk = new QPushButton(approvalCard);
+    approvalOk->setObjectName("approvalOk");
+    approvalCancel = new QPushButton(approvalCard);
+    approvalCancel->setObjectName("approvalCancel");
+    approvalButtons->addStretch(1);
+    approvalButtons->addWidget(approvalCancel);
+    approvalButtons->addWidget(approvalOk);
+    approvalLayout->addWidget(approvalTitle);
+    approvalLayout->addWidget(approvalDetail);
+    approvalLayout->addLayout(approvalButtons);
+    approvalCard->hide();
+    layout->addWidget(approvalCard);
+    connect(approvalOk, &QPushButton::clicked, this, [this]() {
+        approvalResult = true;
+        if (approvalLoop)
+            approvalLoop->quit();
+    });
+    connect(approvalCancel, &QPushButton::clicked, this, [this]() { cancelApproval(); });
+
     errorLabel = new QLabel(container);
     errorLabel->setObjectName("errorBox");
     errorLabel->setWordWrap(true);
@@ -137,12 +170,16 @@ void AiChatView::refreshStyle()
 #codeBlock { background-color: %2; border: 1px solid %3; border-radius: 6px; }
 #muted, #codeLanguage { color: %4; }
 #errorBox { background-color: %5; color: %6; border-radius: 6px; padding: 8px; }
+#approvalCard { background-color: %1; border: 1px solid %7; border-radius: 8px; }
+#approvalDetail { background-color: %2; border-radius: 4px; padding: 6px; }
+QPushButton#approvalOk { background-color: %7; color: #ffffff; border: none; border-radius: 4px; padding: 4px 14px; }
+QPushButton#approvalCancel { border: 1px solid %3; border-radius: 4px; padding: 4px 14px; background-color: transparent; }
 #emptyTitle { font-size: 15pt; font-weight: 600; }
 QToolButton#codeButton { border: none; color: %4; padding: 2px 6px; }
 QToolButton#codeButton:hover { background-color: %3; border-radius: 4px; }
 QPushButton#suggestion { text-align: left; border: 1px solid %3; border-radius: 6px; padding: 8px 10px; background-color: transparent; }
 QPushButton#suggestion:hover { background-color: %1; }
-)").arg(c.bubble, c.code, c.border, c.muted, c.errorBack, c.errorText));
+)").arg(c.bubble, c.code, c.border, c.muted, c.errorBack, c.errorText, c.accent));
 }
 
 QLabel *AiChatView::makeTextLabel(const QString &html)
@@ -411,6 +448,33 @@ void AiChatView::addToolStep(const QJsonObject &message)
     const QString icon = error ? QString("<span style=\"color:%1;\">✗</span>").arg(c.errorText) : QString("✓");
     QLabel *step = makeTextLabel(QString("<span style=\"color:%1;\">%2&nbsp;&nbsp;%3</span>").arg(c.muted, icon, text));
     messages->addWidget(step);
+}
+
+bool AiChatView::waitForApproval(const QString &title, const QString &detail, const QString &okText, const QString &cancelText)
+{
+    approvalTitle->setText(title);
+    approvalDetail->setText(detail);
+    approvalOk->setText(okText);
+    approvalCancel->setText(cancelText);
+    approvalCard->show();
+    approvalOk->setFocus();
+    scrollToBottomLater();
+
+    QEventLoop loop;
+    approvalLoop = &loop;
+    approvalResult = false;
+    loop.exec();
+    approvalLoop = nullptr;
+
+    approvalCard->hide();
+    return approvalResult;
+}
+
+void AiChatView::cancelApproval()
+{
+    approvalResult = false;
+    if (approvalLoop)
+        approvalLoop->quit();
 }
 
 QString AiChatView::markdownToHtml(const QString &markdown)

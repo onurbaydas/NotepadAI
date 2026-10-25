@@ -18,6 +18,8 @@ Always rebuild after a change and fix every compiler error before finishing. Hea
 - `src/AiClient.*` — provider settings (`AI/` QSettings group), settings dialog, OpenRouter PKCE browser login, non-streaming `complete()` used by inline features.
 - `src/AiInlineAssist.*` — Ctrl+I inline edit and ghost-text autocomplete (Scintilla EOL annotations + annotations, Tab accepts).
 - `src/DarkTheme.*` — Fusion dark palette, extra style sheet, and conversion of lexer styles to dark (called at the end of `setEditorLanguage`). Light colours live in `EditorManager::applyColors()`.
+- `src/AiDiff.*` — line diff (LCS), hunks and rebuilding a text from chosen hunks.
+- `src/AiReviewManager.*` — in-editor review of AI changes: markers 18/19 for added lines, annotations for removed lines (shared annotation styles with ghost text via `annotationStyles()`), floating Keep/Undo bar. Agent edits and Ctrl+I go through it.
 - `src/AiAgentTools.*` — agent tools (list/read/search/edit/write files, run_command), path sandboxing to the workspace root, diff approval dialog.
 - `src/docks/` — dock panels. `AiChatDock.*` is the AI assistant (chat UI, streaming, agent loop); `FolderAsWorkspaceDock.*` is the file tree.
 - `src/ScintillaNext.*` — editor widget (Scintilla). Use `getSelText()`, `getText(textLength() + 1)`, `replaceSel()`. Note `ScintillaEdit::setFocus(bool)` shadows `QWidget::setFocus()`; call `editor->QWidget::setFocus()`.

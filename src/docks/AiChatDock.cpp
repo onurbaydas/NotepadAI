@@ -20,10 +20,13 @@
 #include "AiAgentTools.h"
 #include "AiClient.h"
 #include "AiChatView.h"
+#include "AiReviewManager.h"
+#include "DockedEditor.h"
 #include "MainWindow.h"
 #include "ScintillaNext.h"
 
 #include <QComboBox>
+#include <QListWidget>
 #include <QFrame>
 #include <QToolButton>
 #include <QDateTime>
@@ -67,6 +70,8 @@ const char *AGENT_PROMPT =
     "Always read a file before editing it. Prefer edit_file with a small, unique old_string over rewriting whole files. "
     "Paths are relative to the workspace root. Every change is shown to the user as a diff for approval; "
     "if a change is rejected, ask what they want instead. Do not ask for permission before using tools, just use them. "
+    "For larger tasks, state a short plan first and then work through it. After changing code, run the project's tests "
+    "or build when there is an obvious way to do so, and fix what fails. "
     "When you are done, briefly summarize what you changed. Reply in the same language the user writes in.";
 
 // Keep requests reasonably sized when the whole file is sent as context.
@@ -139,10 +144,12 @@ AiChatDock::AiChatDock(MainWindow *window) :
     chatView = new AiChatView(container);
     layout->addWidget(chatView, 1);
 
-    QHBoxLayout *composerRow = new QHBoxLayout;
-    composerRow->setContentsMargins(8, 0, 8, 0);
-    composerRow->addWidget(createComposer());
-    layout->addLayout(composerRow);
+    QVBoxLayout *composerColumn = new QVBoxLayout;
+    composerColumn->setContentsMargins(8, 0, 8, 0);
+    composerColumn->setSpacing(6);
+    composerColumn->addWidget(createReviewStrip());
+    composerColumn->addWidget(createComposer());
+    layout->addLayout(composerColumn);
 
     setWidget(container);
     setMinimumWidth(280);
@@ -159,6 +166,11 @@ AiChatDock::AiChatDock(MainWindow *window) :
     contextTimer->setInterval(500);
     connect(contextTimer, &QTimer::timeout, this, &AiChatDock::updateContextChip);
     contextTimer->start();
+
+    // Commands are confirmed with a card inside the chat
+    tools->confirmCommand = [this](const QString &command, const QString &directory) {
+        return chatView->waitForApproval(tr("Run this command in %1?").arg(QDir(directory).dirName()), command, tr("Run"), tr("Skip"));
+    };
 
     // Remember what each file looked like before the agent first touched it in a turn
     tools->beforeChange = [this](const QString &path, bool existed, const QString &content) {
@@ -287,10 +299,198 @@ QFrame *AiChatDock::createComposer()
         updateContextChip();
     });
     connect(input, &QPlainTextEdit::textChanged, this, &AiChatDock::updateComposerHeight);
+    connect(input, &QPlainTextEdit::textChanged, this, &AiChatDock::updateMentionPopup);
+
+    // "@" lists workspace files; mentioned files are sent along. The list never takes focus,
+    // so typing continues in the input and the keys are handled in eventFilter()
+    mentionList = new QListWidget(this);
+    mentionList->setWindowFlags(Qt::ToolTip);
+    mentionList->setAttribute(Qt::WA_ShowWithoutActivating);
+    mentionList->setFocusPolicy(Qt::NoFocus);
+    mentionList->setObjectName("mentionList");
+    connect(mentionList, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+        mentionList->hide();
+        insertMention(item->text());
+        input->setFocus();
+    });
 
     updateComposerHeight();
     updateModelButton();
     return frame;
+}
+
+QFrame *AiChatDock::createReviewStrip()
+{
+    reviewStrip = new QFrame(this);
+    reviewStrip->setObjectName("reviewStrip");
+    QVBoxLayout *layout = new QVBoxLayout(reviewStrip);
+    layout->setContentsMargins(8, 6, 6, 6);
+    layout->setSpacing(2);
+
+    QHBoxLayout *header = new QHBoxLayout;
+    reviewTitle = new QLabel(reviewStrip);
+    reviewTitle->setObjectName("reviewTitle");
+    QToolButton *keepAll = new QToolButton(reviewStrip);
+    keepAll->setObjectName("reviewKeepAll");
+    keepAll->setText(tr("Keep all"));
+    keepAll->setCursor(Qt::PointingHandCursor);
+    QToolButton *undoAll = new QToolButton(reviewStrip);
+    undoAll->setObjectName("reviewUndoAll");
+    undoAll->setText(tr("Undo all"));
+    undoAll->setCursor(Qt::PointingHandCursor);
+    header->addWidget(reviewTitle, 1);
+    header->addWidget(undoAll);
+    header->addWidget(keepAll);
+    layout->addLayout(header);
+
+    reviewFiles = new QVBoxLayout;
+    reviewFiles->setSpacing(0);
+    layout->addLayout(reviewFiles);
+
+    connect(keepAll, &QToolButton::clicked, this, [this]() {
+        if (reviews)
+            reviews->acceptAll();
+    });
+    connect(undoAll, &QToolButton::clicked, this, [this]() {
+        if (reviews)
+            reviews->rejectAll();
+    });
+
+    reviewStrip->hide();
+    return reviewStrip;
+}
+
+void AiChatDock::setReviewManager(AiReviewManager *manager)
+{
+    reviews = manager;
+    tools->setReviewManager(manager);
+    connect(manager, &AiReviewManager::changed, this, &AiChatDock::updateReviewStrip);
+}
+
+void AiChatDock::updateReviewStrip()
+{
+    while (QLayoutItem *item = reviewFiles->takeAt(0)) {
+        if (QWidget *w = item->widget())
+            w->deleteLater();
+        delete item;
+    }
+
+    const QList<AiReviewManager::FileSummary> files = reviews ? reviews->summaries() : QList<AiReviewManager::FileSummary>();
+    reviewStrip->setVisible(!files.isEmpty());
+    if (files.isEmpty())
+        return;
+
+    reviewTitle->setText(tr("%1 file(s) changed - review").arg(files.size()));
+    for (const AiReviewManager::FileSummary &file : files) {
+        QToolButton *row = new QToolButton(reviewStrip);
+        row->setObjectName("reviewFile");
+        row->setText(QString("%1    +%2  −%3").arg(file.name).arg(file.added).arg(file.removed));
+        row->setToolTip(tr("Show the changes in the editor"));
+        row->setCursor(Qt::PointingHandCursor);
+        row->setAutoRaise(true);
+        QPointer<ScintillaNext> editor = file.editor;
+        connect(row, &QToolButton::clicked, this, [this, editor]() {
+            if (editor)
+                window->getDockedEditor()->switchToEditor(editor);
+        });
+        reviewFiles->addWidget(row);
+    }
+}
+
+void AiChatDock::updateMentionPopup()
+{
+    QTextCursor cursor = input->textCursor();
+    const QString before = input->toPlainText().left(cursor.position());
+    static const QRegularExpression mention("(?:^|\\s)@([^\\s@]*)$");
+    const QRegularExpressionMatch match = mention.match(before);
+    if (!match.hasMatch()) {
+        mentionList->hide();
+        return;
+    }
+
+    if (mentionCandidates.isEmpty() || match.captured(1).isEmpty())
+        mentionCandidates = tools->workspaceFiles(3000);
+
+    const QString prefix = match.captured(1);
+    mentionList->clear();
+    for (const QString &file : std::as_const(mentionCandidates)) {
+        if (file.contains(prefix, Qt::CaseInsensitive))
+            mentionList->addItem(file);
+        if (mentionList->count() >= 40)
+            break;
+    }
+    if (mentionList->count() == 0) {
+        mentionList->hide();
+        return;
+    }
+
+    mentionList->setCurrentRow(0);
+    const int rowHeight = mentionList->sizeHintForRow(0);
+    mentionList->resize(qMin(input->width(), 380), qMin(8, mentionList->count()) * rowHeight + 6);
+    const QRect caret = input->cursorRect();
+    QPoint pos(input->mapToGlobal(QPoint(0, 0)).x(), input->viewport()->mapToGlobal(caret.topLeft()).y());
+    pos.ry() -= mentionList->height() + 4;  // above the caret: the input sits at the bottom of the window
+    mentionList->move(pos);
+    mentionList->show();
+}
+
+void AiChatDock::insertMention(const QString &path)
+{
+    QTextCursor cursor = input->textCursor();
+    const QString before = input->toPlainText().left(cursor.position());
+    const int at = before.lastIndexOf('@');
+    if (at < 0)
+        return;
+    cursor.setPosition(at);
+    cursor.setPosition(input->textCursor().position(), QTextCursor::KeepAnchor);
+    cursor.insertText("@" + path + " ");
+    input->setTextCursor(cursor);
+}
+
+QString AiChatDock::mentionedFiles(const QString &question) const
+{
+    const QString root = tools->workspaceRoot();
+    if (root.isEmpty())
+        return QString();
+
+    static const QRegularExpression mention("(?:^|\\s)@([^\\s@]+)");
+    QString context;
+    QSet<QString> seen;
+    auto it = mention.globalMatch(question);
+    while (it.hasNext() && context.size() < MAX_CONTEXT_CHARS) {
+        const QString rel = it.next().captured(1);
+        const QFileInfo info(QDir(root).filePath(rel));
+        if (seen.contains(rel) || !info.isFile() || info.size() > 512 * 1024)
+            continue;
+        if (!info.canonicalFilePath().startsWith(root + "/"))
+            continue;
+        seen.insert(rel);
+
+        QFile file(info.filePath());
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        QString text = QString::fromUtf8(file.readAll());
+        if (text.size() > MAX_CONTEXT_CHARS - context.size())
+            text = text.left(MAX_CONTEXT_CHARS - context.size()) + "\n... (truncated)";
+        context += QString("File @%1:\n```\n%2\n```\n\n").arg(rel, text);
+    }
+    return context;
+}
+
+QString AiChatDock::projectRules() const
+{
+    const QString root = tools->workspaceRoot();
+    if (root.isEmpty())
+        return QString();
+
+    QString rules;
+    for (const char *name : {"AGENTS.md", "CLAUDE.md", ".cursorrules"}) {
+        QFile file(QDir(root).filePath(name));
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        rules += QString("\n\nProject instructions from %1:\n%2").arg(name, QString::fromUtf8(file.read(20000)));
+    }
+    return rules;
 }
 
 bool AiChatDock::isAgentMode() const
@@ -358,6 +558,31 @@ bool AiChatDock::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == input && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        // While the @ file list is open, Enter/Tab pick, arrows move, Esc closes
+        if (mentionList->isVisible()) {
+            const int rows = mentionList->count();
+            switch (keyEvent->key()) {
+            case Qt::Key_Return:
+            case Qt::Key_Enter:
+            case Qt::Key_Tab:
+                mentionList->hide();
+                if (mentionList->currentItem())
+                    insertMention(mentionList->currentItem()->text());
+                return true;
+            case Qt::Key_Down:
+                mentionList->setCurrentRow((mentionList->currentRow() + 1) % rows);
+                return true;
+            case Qt::Key_Up:
+                mentionList->setCurrentRow((mentionList->currentRow() - 1 + rows) % rows);
+                return true;
+            case Qt::Key_Escape:
+                mentionList->hide();
+                return true;
+            default:
+                break;
+            }
+        }
+
         // Enter sends, Shift+Enter starts a new line
         if ((keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) && !(keyEvent->modifiers() & Qt::ShiftModifier)) {
             if (!reply && !runningTools)
@@ -412,6 +637,7 @@ QString AiChatDock::systemPrompt() const
             prompt += "\n\nNo workspace folder is open, so file tools will fail. Tell the user to open one with File > Open Folder as Workspace.";
     }
 
+    prompt += projectRules();
     if (historyTrimmed)
         prompt += "\n\nThe beginning of this conversation was removed to stay within the context limit.";
     return prompt;
@@ -443,9 +669,9 @@ void AiChatDock::addUserMessage(const QString &question)
         }
     }
 
-    QString content = question;
+    QString content = mentionedFiles(question) + question;
     if (contextEnabled)
-        content = buildContext() + question;
+        content = buildContext() + content;
     contextEnabled = true;
     updateContextChip();
 
@@ -841,6 +1067,7 @@ void AiChatDock::runToolCalls()
 void AiChatDock::stopRequest()
 {
     stopRequested = true;
+    chatView->cancelApproval();
     if (reply)
         reply->abort();
 }

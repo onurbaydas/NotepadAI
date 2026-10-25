@@ -21,7 +21,10 @@
 #include <QMap>
 #include <QScrollArea>
 
+class QEventLoop;
+class QFrame;
 class QLabel;
+class QPushButton;
 class QTimer;
 class QVBoxLayout;
 
@@ -41,6 +44,10 @@ public:
     // The answer currently streaming in
     void setLive(bool active, const QString &text = QString(), const QStringList &pendingTools = QStringList());
     void setError(const QString &error);
+
+    // Shows a card with two buttons in the chat and waits until one is clicked (or cancelApproval() is called)
+    bool waitForApproval(const QString &title, const QString &detail, const QString &okText, const QString &cancelText);
+    void cancelApproval();
 
     // Minimal Markdown to Qt rich text (paragraphs, headings, lists, bold, italic, inline code, links, fenced code)
     static QString markdownToHtml(const QString &markdown);
@@ -69,6 +76,13 @@ private:
     QLabel *liveText;
     QLabel *liveStatus;
     QLabel *errorLabel;
+    QFrame *approvalCard;
+    QLabel *approvalTitle;
+    QLabel *approvalDetail;
+    QPushButton *approvalOk;
+    QPushButton *approvalCancel;
+    QEventLoop *approvalLoop = nullptr;
+    bool approvalResult = false;
     QTimer *dots;
     int dotCount = 0;
     QString liveStatusText;

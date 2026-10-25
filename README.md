@@ -22,11 +22,13 @@ Linux için `.AppImage`, macOS için `.dmg` dosyaları da aynı sayfada.
 
 - 🤖 **Agent modu** (Cursor / Antigravity gibi): AI projeyi kendisi keşfeder, dosyaları okur, düzenler, yeni dosya oluşturur ve komut çalıştırır
   - Araçlar: `list_files`, `read_file`, `search`, `edit_file`, `write_file`, `run_command`
-  - Her dosya değişikliği önce **renkli diff** olarak gösterilir, **Accept / Reject** ile onaylarsın (istersen *Auto-apply edits*)
-  - Terminal komutları **her zaman** onay ister; AI sadece çalışma klasörünün içine erişebilir
-- ↶ **Checkpoint**: her mesajın altındaki *Restore checkpoint* ile o mesajdan sonra AI'ın değiştirdiği tüm dosyalar geri alınır, mesaj düzenlenip tekrar gönderilebilir
-- ✏️ **Satır içi düzenleme** (`Ctrl+I`): kodu seç, ne istediğini yaz, diff'i onayla
-- 👻 **Yazarken öneri** (ghost text): yazmayı bırakınca gri öneri çıkar, **Tab** ile kabul, yazmaya devam edersen kaybolur
+  - Agent beklemeden çalışır; değişiklikler **editörde satır içi diff** olarak görünür (eklenen satırlar yeşil, silinenler kırmızı)
+  - Alttaki çubukla değişiklikler arasında gezilir, her biri **Tut / Geri al**; sohbette "N dosya değişti · Hepsini tut / Hepsini geri al" şeridi
+  - Terminal komutları sohbetin içinde **Çalıştır / Atla** kartıyla onaylanır; AI sadece çalışma klasörünün içine erişebilir
+  - `@dosya` yazarak dosyaları bağlama ekle; projedeki `AGENTS.md`, `CLAUDE.md`, `.cursorrules` otomatik okunur
+- ↶ **Checkpoint**: her mesajın altındaki *Buradan sonraki değişiklikleri geri al* ile o mesajdan sonraki tüm dosya değişiklikleri geri alınır
+- ✏️ **Satır içi düzenleme** (`Ctrl+I`): kodu seç, ne istediğini yaz; sonuç editörde diff olarak gelir, Tut / Geri al
+- 👻 **Yazarken öneri** (ghost text): yazmayı bırakınca gri öneri çıkar, **Tab** ile tamamı, **Ctrl+→** ile kelime kelime kabul
 - 🎨 **Sade arayüz**: Cursor tarzı sohbet paneli (mesaj kartları, *Kopyala / Editöre ekle* butonlu kod blokları, tek satırlık adım özetleri), mesaj kutusunda **Agent / Sohbet** seçimi ve model adı, gönderilecek dosyayı gösteren etiket; Türkçe arayüz
 - 💬 **Sohbet geçmişi**: sohbetler otomatik kaydedilir, **History** ile geri açılır
 - 🧠 **Bağlam yönetimi**: uzun agent oturumlarında eski araç çıktıları otomatik kısaltılır, gerekirse en eski mesajlar atılır
@@ -42,7 +44,7 @@ Linux için `.AppImage`, macOS için `.dmg` dosyaları da aynı sayfada.
 |---|---|
 | `Ctrl+L` | AI sohbet kutusuna git |
 | `Ctrl+I` | Seçili kodu AI ile düzenle |
-| `Tab` | Gri öneriyi kabul et |
+| `Tab` / `Ctrl+→` | Gri öneriyi kabul et / bir kelimesini kabul et |
 | `Enter` | Sohbette mesaj gönder (`Shift+Enter`: yeni satır) |
 | `Ctrl+Shift+I` | AI panelini aç/kapat |
 
@@ -88,7 +90,7 @@ Windows/macOS için ayrıntılı talimatlar: [doc/Building.md](doc/Building.md)
 - [x] Sohbet geçmişi, bağlam yönetimi, prompt caching
 - [x] Koyu tema, OpenRouter ile tarayıcıdan giriş
 - [x] Yeni sohbet paneli tasarımı, Türkçe arayüz
-- [ ] `@dosya` ile bağlam ekleme, proje kuralları (`AGENTS.md`)
+- [x] Editörde satır içi diff, sohbet içi komut onayı, `@dosya`, proje kuralları
 - [ ] Gömülü terminal paneli
 - [ ] LSP (tanıma git, hata altı çizgileri), Git arayüzü
 - [ ] API anahtarını işletim sisteminin anahtar zincirinde saklama

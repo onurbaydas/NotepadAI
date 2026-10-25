@@ -23,6 +23,7 @@
 
 #include <functional>
 
+class AiReviewManager;
 class MainWindow;
 class QWidget;
 
@@ -61,6 +62,15 @@ public:
     // Puts a file back to a recorded state (deletes it if it did not exist).
     bool restoreFile(const QString &absolutePath, bool existed, const QString &content);
 
+    // When set, file changes are applied right away and reviewed in the editor instead of asked for up front
+    void setReviewManager(AiReviewManager *manager) { reviews = manager; }
+
+    // Asks the user before running a command: (command, working directory) -> allowed. Defaults to a dialog.
+    std::function<bool(const QString &command, const QString &directory)> confirmCommand;
+
+    // Relative paths of the files in the workspace (for @ mentions)
+    QStringList workspaceFiles(int limit) const;
+
 private:
     Result listFiles(const QJsonObject &input);
     Result readFile(const QJsonObject &input);
@@ -76,4 +86,5 @@ private:
     QString writeContent(const QString &absolutePath, const QString &text, bool openIfClosed);
 
     MainWindow *window;
+    AiReviewManager *reviews = nullptr;
 };

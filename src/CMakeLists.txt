@@ -55,9 +55,13 @@ qt_add_executable(NotepadNext
 	AiAgentTools.cpp
 	AiAgentTools.h
 	AiClient.cpp
+	AiDiff.cpp
+	AiDiff.h
 	AiClient.h
 	AiInlineAssist.cpp
 	AiInlineAssist.h
+	AiReviewManager.cpp
+	AiReviewManager.h
 	ApplicationSettings.cpp
 	DarkTheme.cpp
 	DarkTheme.h

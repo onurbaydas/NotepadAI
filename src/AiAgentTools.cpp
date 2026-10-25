@@ -16,6 +16,8 @@
  */
 
 #include "AiAgentTools.h"
+#include "AiDiff.h"
+#include "AiReviewManager.h"
 
 #include "DarkTheme.h"
 
@@ -108,6 +110,18 @@ AiAgentTools::AiAgentTools(MainWindow *window) :
     QObject(window),
     window(window)
 {
+}
+
+QStringList AiAgentTools::workspaceFiles(int limit) const
+{
+    const QString root = workspaceRoot();
+    QStringList files;
+    if (root.isEmpty())
+        return files;
+    collectFiles(root, 0, limit, &files);
+    for (QString &file : files)
+        file = QDir(root).relativeFilePath(file);
+    return files;
 }
 
 QString AiAgentTools::workspaceRoot() const
@@ -379,7 +393,7 @@ AiAgentTools::Result AiAgentTools::applyChange(const QString &absolutePath, cons
     if (oldText == newText)
         return Result{"No changes: the new content is identical.", tr("no changes"), false};
 
-    if (!autoApprove) {
+    if (!autoApprove && !reviews) {
         const QString title = isNew ? tr("Create file: %1").arg(rel) : tr("Edit file: %1").arg(rel);
         if (!askApproval(window, title, diffHtml(oldText, newText)))
             return Result{"The user rejected this change. Ask what they want instead.", tr("rejected by user"), true};
@@ -387,6 +401,28 @@ AiAgentTools::Result AiAgentTools::applyChange(const QString &absolutePath, cons
 
     if (beforeChange)
         beforeChange(absolutePath, !isNew, oldText);
+
+    if (!autoApprove && reviews) {
+        // Like Cursor: apply now, open the file and let the user keep or undo each change in the editor
+        NotepadNextApplication *app = qobject_cast<NotepadNextApplication *>(qApp);
+        ScintillaNext *editor = app->getEditorManager()->getEditorByFilePath(absolutePath);
+        if (!editor) {
+            if (isNew) {
+                QDir().mkpath(QFileInfo(absolutePath).absolutePath());
+                QFile file(absolutePath);
+                if (!file.open(QIODevice::WriteOnly))
+                    return Result{QString("Cannot create '%1': %2").arg(rel, file.errorString()), tr("write failed"), true};
+            }
+            window->openFile(absolutePath);
+            editor = app->getEditorManager()->getEditorByFilePath(absolutePath);
+        }
+        if (!editor)
+            return Result{QString("Cannot open '%1' in the editor.").arg(rel), tr("write failed"), true};
+
+        reviews->applyToEditor(editor, newText, isNew);
+        return Result{QString("%1 %2. The change is saved; the user can review it in the editor.").arg(isNew ? "Created" : "Updated", rel),
+                      isNew ? tr("created") : tr("applied"), false};
+    }
 
     const QString error = writeContent(absolutePath, newText, true);
     if (!error.isEmpty())
@@ -444,7 +480,8 @@ AiAgentTools::Result AiAgentTools::runCommand(const QJsonObject &input)
 
     const QString html = QString("<p>%1</p><pre style=\"font-family: monospace; font-size: 11pt;\">%2</pre><p style=\"color: gray;\">%3</p>")
                              .arg(tr("The AI wants to run this command:"), command.toHtmlEscaped(), tr("in %1").arg(root.toHtmlEscaped()));
-    if (!askApproval(window, tr("Run command"), html))
+    const bool allowed = confirmCommand ? confirmCommand(command, root) : askApproval(window, tr("Run command"), html);
+    if (!allowed)
         return Result{"The user rejected this command.", tr("rejected by user"), true};
 
     QProcess process;
@@ -516,65 +553,18 @@ bool AiAgentTools::askApproval(QWidget *parent, const QString &title, const QStr
 
 QString AiAgentTools::diffHtml(const QString &oldText, const QString &newText)
 {
-    const QStringList a = oldText.isEmpty() ? QStringList() : QString(oldText).remove('\r').split('\n');
-    const QStringList b = newText.isEmpty() ? QStringList() : QString(newText).remove('\r').split('\n');
-
-    // Lines shared at the start and end are unchanged; only diff the middle
-    int prefix = 0;
-    while (prefix < a.size() && prefix < b.size() && a[prefix] == b[prefix])
-        ++prefix;
-    int suffix = 0;
-    while (suffix < a.size() - prefix && suffix < b.size() - prefix && a[a.size() - 1 - suffix] == b[b.size() - 1 - suffix])
-        ++suffix;
-
-    const QStringList midA = a.mid(prefix, a.size() - prefix - suffix);
-    const QStringList midB = b.mid(prefix, b.size() - prefix - suffix);
-
-    std::vector<std::pair<QChar, QString>> ops;
-    for (int i = 0; i < prefix; ++i)
-        ops.push_back({' ', a[i]});
-
-    const qsizetype n = midA.size(), m = midB.size();
-    if (n * m <= 4000000) {
-        // Longest common subsequence, lengths computed from the end
-        std::vector<int> lcs((n + 1) * (m + 1), 0);
-        auto at = [&](qsizetype i, qsizetype j) -> int & { return lcs[i * (m + 1) + j]; };
-        for (qsizetype i = n - 1; i >= 0; --i)
-            for (qsizetype j = m - 1; j >= 0; --j)
-                at(i, j) = midA[i] == midB[j] ? at(i + 1, j + 1) + 1 : qMax(at(i + 1, j), at(i, j + 1));
-
-        qsizetype i = 0, j = 0;
-        while (i < n || j < m) {
-            if (i < n && j < m && midA[i] == midB[j]) {
-                ops.push_back({' ', midA[i++]});
-                ++j;
-            }
-            else if (i < n && (j == m || at(i + 1, j) >= at(i, j + 1))) {
-                ops.push_back({'-', midA[i++]});
-            }
-            else {
-                ops.push_back({'+', midB[j++]});
-            }
-        }
-    }
-    else {
-        for (const QString &line : midA)
-            ops.push_back({'-', line});
-        for (const QString &line : midB)
-            ops.push_back({'+', line});
-    }
-
-    for (int i = a.size() - suffix; i < a.size(); ++i)
-        ops.push_back({' ', a[i]});
+    const QStringList a = oldText.isEmpty() ? QStringList() : AiDiff::lines(QString(oldText).remove('\r'));
+    const QStringList b = newText.isEmpty() ? QStringList() : AiDiff::lines(QString(newText).remove('\r'));
+    const QList<AiDiff::Op> ops = AiDiff::diff(a, b);
 
     // Only show changed lines plus a few lines of context around them
     const int count = static_cast<int>(ops.size());
     std::vector<bool> visible(count, false);
     int added = 0, removed = 0;
     for (int i = 0; i < count; ++i) {
-        if (ops[i].first == ' ')
+        if (ops[i].type == ' ')
             continue;
-        ops[i].first == '+' ? ++added : ++removed;
+        ops[i].type == '+' ? ++added : ++removed;
         for (int k = qMax(0, i - DIFF_CONTEXT); k <= qMin(count - 1, i + DIFF_CONTEXT); ++k)
             visible[k] = true;
     }
@@ -596,10 +586,10 @@ QString AiAgentTools::diffHtml(const QString &oldText, const QString &newText)
             html += "<span style=\"color: gray;\">   ...</span>\n";
             skipped = false;
         }
-        const QString line = ops[i].second.toHtmlEscaped();
-        if (ops[i].first == '+')
+        const QString line = ops[i].line.toHtmlEscaped();
+        if (ops[i].type == '+')
             html += QString("<span style=\"%1\">+ %2</span>\n").arg(addedStyle, line);
-        else if (ops[i].first == '-')
+        else if (ops[i].type == '-')
             html += QString("<span style=\"%1\">- %2</span>\n").arg(removedStyle, line);
         else
             html += QString("  %1\n").arg(line);
