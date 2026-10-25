@@ -150,8 +150,7 @@ private slots:
 private:
     Ui::MainWindow *ui = Q_NULLPTR;
     NotepadNextApplication *app = Q_NULLPTR;
-    QLabel *workspaceNameLabel = Q_NULLPTR;
-    void updateWorkspaceName(const QString &dir);
+    void workspacePathRenamed(const QString &oldPath, const QString &newPath);
     DockedEditor *dockedEditor = Q_NULLPTR;
 
     QScopedPointer<SearchResultsCollector> searchResults;

@@ -56,6 +56,10 @@ qt_add_executable(NotepadNext
 	AiAgentTools.h
 	AiClient.cpp
 	AiDiff.cpp
+	UiIcons.cpp
+	UiIcons.h
+	QuickOpen.cpp
+	QuickOpen.h
 	AiDiff.h
 	AiClient.h
 	AiInlineAssist.cpp
@@ -109,6 +113,8 @@ qt_add_executable(NotepadNext
 	ZoomEventWatcher.cpp
 	decorators/ApplicationDecorator.cpp
 	decorators/ApplicationDecorator.h
+	decorators/AutoCloseBrackets.cpp
+	decorators/AutoCloseBrackets.h
 	decorators/AutoCompletion.cpp
 	decorators/AutoCompletion.h
 	decorators/AutoIndentation.cpp
@@ -183,6 +189,8 @@ qt_add_executable(NotepadNext
 	docks/LuaConsoleDock.cpp
 	docks/LuaConsoleDock.h
 	docks/LuaConsoleDock.ui
+	docks/TerminalDock.cpp
+	docks/TerminalDock.h
 	docks/SearchResultsDock.cpp
 	docks/SearchResultsDock.h
 	docks/SearchResultsDock.ui

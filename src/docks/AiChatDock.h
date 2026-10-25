@@ -52,6 +52,8 @@ public:
 
     void focusInput();
     void explainSelection();
+    // Adds @path (relative to the workspace) to the message being written
+    void addMention(const QString &path);
     void setReviewManager(AiReviewManager *manager);
 
 protected:

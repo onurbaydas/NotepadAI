@@ -540,22 +540,174 @@
     <message>
       <location filename="../src/docks/FolderAsWorkspaceDock.ui" line="108"/>
       <source>Size</source>
-      <translation type="unfinished"/>
+      <translation>Boyut</translation>
     </message>
     <message>
       <location filename="../src/docks/FolderAsWorkspaceDock.ui" line="119"/>
       <source>Type</source>
-      <translation type="unfinished"/>
+      <translation>Tür</translation>
     </message>
     <message>
       <location filename="../src/docks/FolderAsWorkspaceDock.ui" line="130"/>
       <source>Date Modified</source>
-      <translation type="unfinished"/>
+      <translation>Değiştirilme Tarihi</translation>
     </message>
     <message>
       <location filename="../src/docks/FolderAsWorkspaceDock.ui" line="141"/>
       <source>Hidden</source>
-      <translation type="unfinished"/>
+      <translation>Gizli dosyalar</translation>
+    </message>
+      <message>
+      <source>%1 items</source>
+      <translation>%1 öğe</translation>
+    </message>
+      <message>
+      <source>&apos;%1&apos; already exists.</source>
+      <translation>&apos;%1&apos; zaten var.</translation>
+    </message>
+      <message>
+      <source>&apos;%1&apos; could not be moved to the trash. Delete it permanently?</source>
+      <translation>&apos;%1&apos; çöp kutusuna taşınamadı. Kalıcı olarak silinsin mi?</translation>
+    </message>
+      <message>
+      <source>&apos;%1&apos; is not a valid file name.</source>
+      <translation>&apos;%1&apos; geçerli bir dosya adı değil.</translation>
+    </message>
+      <message>
+      <source>&apos;%1&apos; is not a valid folder name.</source>
+      <translation>&apos;%1&apos; geçerli bir klasör adı değil.</translation>
+    </message>
+      <message>
+      <source>Add to AI Chat</source>
+      <translation>AI Sohbetine Ekle</translation>
+    </message>
+      <message>
+      <source>Are you sure you want to delete &apos;%1&apos;?</source>
+      <translation>&apos;%1&apos; silinsin mi?</translation>
+    </message>
+      <message>
+      <source>Close</source>
+      <translation>Kapat</translation>
+    </message>
+      <message>
+      <source>Collapse Folders</source>
+      <translation>Klasörleri Daralt</translation>
+    </message>
+      <message>
+      <source>Copy Path</source>
+      <translation>Yolu Kopyala</translation>
+    </message>
+      <message>
+      <source>Copy Relative Path</source>
+      <translation>Göreli Yolu Kopyala</translation>
+    </message>
+      <message>
+      <source>Could not create &apos;%1&apos;.</source>
+      <translation>&apos;%1&apos; oluşturulamadı.</translation>
+    </message>
+      <message>
+      <source>Could not create &apos;%1&apos;: %2</source>
+      <translation>&apos;%1&apos; oluşturulamadı: %2</translation>
+    </message>
+      <message>
+      <source>Could not delete &apos;%1&apos;.</source>
+      <translation>&apos;%1&apos; silinemedi.</translation>
+    </message>
+      <message>
+      <source>Delete</source>
+      <translation>Sil</translation>
+    </message>
+      <message>
+      <source>EXPLORER</source>
+      <translation>GEZGİN</translation>
+    </message>
+      <message>
+      <source>Explorer</source>
+      <translation>Gezgin</translation>
+    </message>
+      <message>
+      <source>File name (use / to create it inside new folders):</source>
+      <translation>Dosya adı (yeni klasörlerin içinde oluşturmak için / kullanın):</translation>
+    </message>
+      <message>
+      <source>Folder name:</source>
+      <translation>Klasör adı:</translation>
+    </message>
+      <message>
+      <source>More actions</source>
+      <translation>Diğer işlemler</translation>
+    </message>
+      <message>
+      <source>Move &apos;%1&apos; into &apos;%2&apos;?</source>
+      <translation>&apos;%1&apos;, &apos;%2&apos; klasörüne taşınsın mı?</translation>
+    </message>
+      <message>
+      <source>Move to Trash</source>
+      <translation>Çöp Kutusuna Taşı</translation>
+    </message>
+      <message>
+      <source>Move</source>
+      <translation>Taşı</translation>
+    </message>
+      <message>
+      <source>New File</source>
+      <translation>Yeni Dosya</translation>
+    </message>
+      <message>
+      <source>New File...</source>
+      <translation>Yeni Dosya...</translation>
+    </message>
+      <message>
+      <source>New Folder</source>
+      <translation>Yeni Klasör</translation>
+    </message>
+      <message>
+      <source>New Folder...</source>
+      <translation>Yeni Klasör...</translation>
+    </message>
+      <message>
+      <source>Open Containing Folder</source>
+      <translation>Bulunduğu Klasörü Aç</translation>
+    </message>
+      <message>
+      <source>Open Folder</source>
+      <translation>Klasör Aç</translation>
+    </message>
+      <message>
+      <source>Open Folder...</source>
+      <translation>Klasör Aç...</translation>
+    </message>
+      <message>
+      <source>Open in Terminal</source>
+      <translation>Terminalde Aç</translation>
+    </message>
+      <message>
+      <source>Refresh Explorer</source>
+      <translation>Gezgini Yenile</translation>
+    </message>
+      <message>
+      <source>Rename...</source>
+      <translation>Yeniden Adlandır...</translation>
+    </message>
+      <message>
+      <source>Reveal in File Explorer</source>
+      <translation>Dosya Gezgininde Göster</translation>
+    </message>
+      <message>
+      <source>Show</source>
+      <translation>Göster</translation>
+    </message>
+      <message>
+      <source>The folder and everything in it will be moved to the trash.</source>
+      <translation>Klasör ve içindeki her şey çöp kutusuna taşınacak.</translation>
+    </message>
+      <message>
+      <source>You can restore it from the trash.</source>
+      <translation>Çöp kutusundan geri yükleyebilirsiniz.</translation>
+    </message>
+      <message>
+      <source>You have not opened a folder yet. Open your project folder to browse its files and let the AI work in it.</source>
+      <translation>Henüz bir klasör açmadınız. Dosyalarına göz atmak ve yapay zekanın içinde çalışabilmesi için proje klasörünüzü açın.</translation>
     </message>
   </context>
   <context>
@@ -1938,6 +2090,14 @@
       <source>no folder open</source>
       <translation>açık klasör yok</translation>
     </message>
+      <message>
+      <source>Go to File...</source>
+      <translation>Dosyaya Git...</translation>
+    </message>
+      <message>
+      <source>Command Palette...</source>
+      <translation>Komut Paleti...</translation>
+    </message>
   </context>
   <context>
     <name>PreferencesDialog</name>
@@ -2747,6 +2907,80 @@ AI'ın çalıştırdığı komutların etkileri (örneğin kurulan paketler) ger
     <message>
       <source>Undo all changes in this file</source>
       <translation>Bu dosyadaki tüm değişiklikleri geri al</translation>
+    </message>
+  </context>
+<context>
+    <name>TerminalDock</name>
+      <message>
+      <source>A command is still running. Stop it first.</source>
+      <translation>Bir komut hâlâ çalışıyor. Önce onu durdurun.</translation>
+    </message>
+      <message>
+      <source>Clear</source>
+      <translation>Temizle</translation>
+    </message>
+      <message>
+      <source>Close</source>
+      <translation>Kapat</translation>
+    </message>
+      <message>
+      <source>Could not start the shell: %1</source>
+      <translation>Kabuk başlatılamadı: %1</translation>
+    </message>
+      <message>
+      <source>Folder not found: %1</source>
+      <translation>Klasör bulunamadı: %1</translation>
+    </message>
+      <message>
+      <source>Input for the running command</source>
+      <translation>Çalışan komuta girdi</translation>
+    </message>
+      <message>
+      <source>Stop the running command (Ctrl+C)</source>
+      <translation>Çalışan komutu durdur (Ctrl+C)</translation>
+    </message>
+      <message>
+      <source>TERMINAL</source>
+      <translation>TERMİNAL</translation>
+    </message>
+      <message>
+      <source>Terminal</source>
+      <translation>Terminal</translation>
+    </message>
+      <message>
+      <source>Type a command and press Enter</source>
+      <translation>Bir komut yazıp Enter&apos;a basın</translation>
+    </message>
+      <message>
+      <source>exit code %1</source>
+      <translation>çıkış kodu %1</translation>
+    </message>
+      <message>
+      <source>running...</source>
+      <translation>çalışıyor...</translation>
+    </message>
+  </context>
+<context>
+    <name>QuickOpen</name>
+      <message>
+      <source>Go to line %1</source>
+      <translation>%1. satıra git</translation>
+    </message>
+      <message>
+      <source>No matching files</source>
+      <translation>Eşleşen dosya yok</translation>
+    </message>
+      <message>
+      <source>No matching open files. Open a folder to search its files.</source>
+      <translation>Eşleşen açık dosya yok. Dosyalarında aramak için bir klasör açın.</translation>
+    </message>
+      <message>
+      <source>Search files by name (append :line to go to a line, start with &gt; for commands)</source>
+      <translation>Dosya adıyla arayın (satıra gitmek için :satır ekleyin, komutlar için &gt; ile başlayın)</translation>
+    </message>
+      <message>
+      <source>Type a command</source>
+      <translation>Bir komut yazın</translation>
     </message>
   </context>
 </TS>

@@ -32,6 +32,7 @@
 #include "LineNumbers.h"
 #include "BetterMultiSelection.h"
 #include "AutoIndentation.h"
+#include "AutoCloseBrackets.h"
 #include "AutoCompletion.h"
 #include "URLFinder.h"
 #include "BookMarkDecorator.h"
@@ -317,7 +318,7 @@ void EditorManager::setupEditor(ScintillaNext *editor)
     setupMacOsKeys(editor);
 #endif
 
-    editor->setFoldMarkers(QStringLiteral("box"));
+    editor->setFoldMarkers(QStringLiteral("arrow"));
 
     editor->setScaleTechnique(SCALE_TECHNIQUE_PIXEL_ALIGNED);
 
@@ -358,8 +359,11 @@ void EditorManager::setupEditor(ScintillaNext *editor)
 
     editor->setWhitespaceSize(2);
 
+    // A little more room between lines, as in modern editors
+    editor->setExtraAscent(1);
+    editor->setExtraDescent(1);
+
     editor->setAutomaticFold(SC_AUTOMATICFOLD_SHOW | SC_AUTOMATICFOLD_CLICK | SC_AUTOMATICFOLD_CHANGE);
-    editor->markerEnableHighlight(true);
 
     editor->setCharsDefault();
     editor->setWordChars(editor->wordChars() + settings->additionalWordChars().toLatin1());
@@ -409,6 +413,9 @@ void EditorManager::setupEditor(ScintillaNext *editor)
 
     AutoIndentation *ai = new AutoIndentation(editor);
     ai->setEnabled(true);
+
+    AutoCloseBrackets *acb = new AutoCloseBrackets(editor);
+    acb->setEnabled(true);
 
     AutoCompletion *ac = new AutoCompletion(editor);
     ac->setEnabled(settings->autoCompletion());

@@ -17,6 +17,7 @@
  */
 
 #include "ApplicationSettings.h"
+#include "DarkTheme.h"
 
 #include <QApplication>
 #include <QFont>
@@ -65,7 +66,7 @@ CREATE_SETTING(Editor, ShowEndOfLine, showEndOfLine, bool, false);
 CREATE_SETTING(Editor, ShowWrapSymbol, showWrapSymbol, bool, false);
 CREATE_SETTING(Editor, ShowIndentGuide, showIndentGuide, bool, true);
 CREATE_SETTING(Editor, WordWrap, wordWrap, bool, false)
-CREATE_SETTING(Editor, FontName, fontName, QString, QStringLiteral("Courier New"))
+CREATE_SETTING(Editor, FontName, fontName, QString, []() { return DarkTheme::monospaceFamily(); })
 CREATE_SETTING(Editor, FontSize, fontSize, int, []() { return qApp->font().pointSize() + 2; })
 CREATE_SETTING(Editor, AdditionalWordChars, additionalWordChars, QString, QStringLiteral(""));
 CREATE_SETTING(Editor, DefaultEOLMode, defaultEOLMode, QString, QStringLiteral(""))

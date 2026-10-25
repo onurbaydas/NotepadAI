@@ -21,6 +21,7 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QFontDatabase>
 #include <QPalette>
 #include <QSettings>
 #include <QStyle>
@@ -143,7 +144,20 @@ QPlainTextEdit#composerInput { background-color: transparent; border: none; }
 QComboBox#modeCombo { border: 1px solid %2; border-radius: 4px; padding: 1px 8px; background-color: transparent; }
 QToolButton#sendButton { background-color: %5; color: white; border: none; border-radius: 13px; min-width: 26px; max-width: 26px; min-height: 26px; max-height: 26px; font-weight: bold; }
 QToolButton#sendButton:hover { background-color: %6; }
-QTreeView#workspaceTree { border: none; background-color: %4; }
+QTreeView#workspaceTree { border: none; background-color: %4; show-decoration-selected: 1; outline: 0; }
+QTreeView#workspaceTree::item { padding: 1px 0px; border: none; }
+QTreeView#workspaceTree::item:hover { background-color: %7; }
+QTreeView#workspaceTree::item:selected { background-color: %8; }
+#workspaceHeader { background-color: %4; font-weight: 600; padding: 5px 10px 4px 10px; }
+#explorerEmpty { background-color: %4; }
+QPushButton#primaryButton { background-color: %5; color: white; border: none; border-radius: 4px; padding: 6px 12px; }
+QPushButton#primaryButton:hover { background-color: %6; }
+QFrame#quickOpen { background-color: %1; border: 1px solid %2; border-radius: 8px; }
+QLineEdit#quickOpenInput { background-color: %4; border: 1px solid %5; border-radius: 4px; padding: 5px 8px; }
+QListWidget#quickOpenList { background-color: transparent; border: none; outline: 0; }
+QListWidget#quickOpenList::item { border-radius: 4px; padding: 0px 4px; }
+QListWidget#quickOpenList::item:selected { background-color: %8; }
+QListWidget#quickOpenList::item:hover:!selected { background-color: %7; }
 #reviewStrip { background-color: %1; border: 1px solid %2; border-radius: 8px; }
 #reviewTitle { font-weight: 600; }
 QToolButton#reviewKeepAll { background-color: #2f8f4e; color: #ffffff; border: none; border-radius: 4px; padding: 3px 10px; }
@@ -153,9 +167,9 @@ QToolButton#reviewFile { color: %3; padding: 2px 4px; }
 )");
 
     if (!isEnabled())
-        return panels.arg("#f3f4f6", "#d0d7de", "#6e7781", "#ffffff", "#0969da", "#2f81f7");
+        return panels.arg("#f3f4f6", "#d0d7de", "#6e7781", "#ffffff", "#0969da", "#2f81f7", "#eaeef2", "#d3e3f8");
 
-    panels = panels.arg("#2b2d30", "#3c3f41", "#8b9099", "#1e1f22", "#3d7cf0", "#5b93f5");
+    panels = panels.arg("#2b2d30", "#3c3f41", "#8b9099", "#1e1f22", "#3d7cf0", "#5b93f5", "#2a2d31", "#25405f");
 
     return panels + QStringLiteral(R"(
 QStatusBar { border-top: 1px solid #3c3f41; }
@@ -235,4 +249,40 @@ void DarkTheme::applyToEditor(ScintillaNext *editor)
         editor->markerSetBack(i, toScintilla(QColor(0x8a, 0x8a, 0x8a)));
     }
     editor->setEdgeColour(toScintilla(QColor(0x3b, 0x3d, 0x41)));
+}
+
+QString DarkTheme::monospaceFamily()
+{
+    static QString family;
+    if (!family.isEmpty())
+        return family;
+
+    const QStringList candidates = {
+#if defined(Q_OS_WIN)
+        "Cascadia Mono", "Cascadia Code", "Consolas",
+#elif defined(Q_OS_MACOS)
+        "SF Mono", "Menlo", "Monaco",
+#else
+        "JetBrains Mono", "Cascadia Mono", "DejaVu Sans Mono", "Ubuntu Mono", "Liberation Mono",
+#endif
+    };
+
+    const QStringList installed = QFontDatabase::families();
+    for (const QString &candidate : candidates) {
+        if (installed.contains(candidate, Qt::CaseInsensitive)) {
+            family = candidate;
+            return family;
+        }
+    }
+
+    family = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
+    return family;
+}
+
+QFont DarkTheme::monospaceFont()
+{
+    QFont font(monospaceFamily());
+    font.setStyleHint(QFont::Monospace);
+    font.setPointSize(QFont().pointSize() + 1);
+    return font;
 }

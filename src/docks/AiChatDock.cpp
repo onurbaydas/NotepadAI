@@ -434,6 +434,25 @@ void AiChatDock::updateMentionPopup()
     mentionList->show();
 }
 
+void AiChatDock::addMention(const QString &path)
+{
+    const QString root = tools->workspaceRoot();
+    QString rel = root.isEmpty() ? path : QDir(root).relativeFilePath(QFileInfo(path).canonicalFilePath());
+    if (rel.startsWith(QLatin1String("..")))
+        rel = path;
+
+    show();
+    raise();
+    QTextCursor cursor = input->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    const QString text = input->toPlainText();
+    if (!text.isEmpty() && !text.endsWith(' ') && !text.endsWith('\n'))
+        cursor.insertText(" ");
+    cursor.insertText("@" + rel + " ");
+    input->setTextCursor(cursor);
+    focusInput();
+}
+
 void AiChatDock::insertMention(const QString &path)
 {
     QTextCursor cursor = input->textCursor();

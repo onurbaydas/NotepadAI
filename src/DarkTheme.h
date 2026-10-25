@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <QFont>
 #include <QString>
 
 class ScintillaNext;
@@ -37,4 +38,8 @@ namespace DarkTheme
 
     // Convert the editor's current (light) styles; call after the language styles are set
     void applyToEditor(ScintillaNext *editor);
+
+    // A good installed monospace font (Cascadia/Consolas on Windows, Menlo on macOS, DejaVu Sans Mono on Linux)
+    QString monospaceFamily();
+    QFont monospaceFont();
 }

@@ -24,9 +24,17 @@ namespace Ui {
 class FolderAsWorkspaceDock;
 }
 
-class QFileSystemModel;
+class QAction;
+class QLabel;
 class QMenu;
+class QModelIndex;
+class QProcess;
+class QStackedWidget;
+class QTimer;
+class WorkspaceModel;
 
+// The Explorer: the workspace folder as a tree with file icons, git status,
+// a context menu for file operations and drag and drop moves
 class FolderAsWorkspaceDock : public QDockWidget
 {
     Q_OBJECT
@@ -37,15 +45,65 @@ public:
 
     void setRootPath(const QString &dir);
     QString rootPath() const;
+    bool hasRoot() const;
 
     // View options (columns, hidden files), shown from the dock's title bar
     QMenu *optionsMenu() const;
 
+    // Selects the file in the tree, expanding its parent folders
+    void revealFile(const QString &filePath);
+
+    void refreshGitStatus();
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
 signals:
-    void fileDoubleClicked(const QString &filePath);
+    void fileOpenRequested(const QString &filePath);
+    void openFolderRequested();
+    // A new file was created and should be opened for typing
+    void fileCreated(const QString &filePath);
+    void pathRenamed(const QString &oldPath, const QString &newPath);
+    void pathDeleted(const QString &path);
+    void addToChatRequested(const QString &path);
+    void openTerminalRequested(const QString &dir);
 
 private:
+    void buildTitleBar();
+    void showContextMenu(const QPoint &pos);
+    QString selectedPath() const;
+    QString targetDirectory() const;
+    void newFile();
+    void newFolder();
+    void renameSelected();
+    void deleteSelected();
+    void copyPath(bool relative);
+    void revealInFileManager();
+    void updateHeader();
+    void runGit(const QStringList &arguments);
+    void gitFinished();
+
     Ui::FolderAsWorkspaceDock *ui;
 
-    QFileSystemModel *model;
+    WorkspaceModel *model;
+    QStackedWidget *pages;
+    QLabel *folderName;
+    QMenu *contextMenu;
+
+    QAction *actionNewFile;
+    QAction *actionNewFolder;
+    QAction *actionRefresh;
+    QAction *actionCollapseAll;
+    QAction *actionRename;
+    QAction *actionDelete;
+    QAction *actionCopyPath;
+    QAction *actionCopyRelativePath;
+    QAction *actionReveal;
+    QAction *actionOpenTerminal;
+    QAction *actionAddToChat;
+
+    QProcess *git = nullptr;
+    QString gitTopLevel;
+    QString pendingReveal;
+    QTimer *gitTimer;
 };

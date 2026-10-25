@@ -63,6 +63,8 @@
 #include "LanguageInspectorDock.h"
 #include "EditorInspectorDock.h"
 #include "FolderAsWorkspaceDock.h"
+#include "QuickOpen.h"
+#include "TerminalDock.h"
 #include "AiChatDock.h"
 #include "AiClient.h"
 #include "AiInlineAssist.h"
@@ -1005,46 +1007,51 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
 
     FolderAsWorkspaceDock *fawDock = new FolderAsWorkspaceDock(this);
     fawDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
-    {
-        QWidget *bar = new QWidget(fawDock);
-        bar->setObjectName("dockTitleBar");
-        QHBoxLayout *barLayout = new QHBoxLayout(bar);
-        barLayout->setContentsMargins(10, 4, 4, 4);
-        barLayout->setSpacing(2);
-        QLabel *title = new QLabel(tr("Explorer"), bar);
-        title->setObjectName("dockTitle");
-        workspaceNameLabel = new QLabel(bar);
-        workspaceNameLabel->setObjectName("dockStatus");
-        workspaceNameLabel->setMinimumWidth(10);
-        QToolButton *openFolder = new QToolButton(bar);
-        openFolder->setText("📂");
-        openFolder->setToolTip(tr("Open Folder as Workspace..."));
-        openFolder->setAutoRaise(true);
-        QToolButton *options = new QToolButton(bar);
-        options->setText("⋯");
-        options->setToolTip(tr("View options"));
-        options->setAutoRaise(true);
-        options->setPopupMode(QToolButton::InstantPopup);
-        options->setMenu(fawDock->optionsMenu());
-        options->setStyleSheet("QToolButton::menu-indicator { image: none; }");
-        QToolButton *closeDock = new QToolButton(bar);
-        closeDock->setText("✕");
-        closeDock->setToolTip(tr("Close"));
-        closeDock->setAutoRaise(true);
-        barLayout->addWidget(title);
-        barLayout->addSpacing(6);
-        barLayout->addWidget(workspaceNameLabel, 1);
-        barLayout->addWidget(openFolder);
-        barLayout->addWidget(options);
-        barLayout->addWidget(closeDock);
-        connect(openFolder, &QToolButton::clicked, this, &MainWindow::openFolderAsWorkspaceDialog);
-        connect(closeDock, &QToolButton::clicked, fawDock, &QDockWidget::close);
-        fawDock->setTitleBarWidget(bar);
-        updateWorkspaceName(fawDock->rootPath());
-    }
     addDockWidget(Qt::LeftDockWidgetArea, fawDock);
     ui->menuView->addAction(fawDock->toggleViewAction());
-    connect(fawDock, &FolderAsWorkspaceDock::fileDoubleClicked, this, &MainWindow::openFile);
+    fawDock->toggleViewAction()->setShortcut(QKeySequence("Ctrl+Shift+E"));
+    connect(fawDock, &FolderAsWorkspaceDock::fileOpenRequested, this, &MainWindow::openFile);
+    connect(fawDock, &FolderAsWorkspaceDock::fileCreated, this, [this](const QString &filePath) {
+        openFile(filePath);
+        if (ScintillaNext *editor = currentEditor())
+            editor->QWidget::setFocus();
+    });
+    connect(fawDock, &FolderAsWorkspaceDock::openFolderRequested, this, &MainWindow::openFolderAsWorkspaceDialog);
+    connect(fawDock, &FolderAsWorkspaceDock::pathRenamed, this, &MainWindow::workspacePathRenamed);
+    connect(this, &MainWindow::editorActivated, fawDock, [fawDock](ScintillaNext *editor) {
+        if (editor && editor->isFile())
+            fawDock->revealFile(editor->getFilePath());
+    });
+
+    TerminalDock *terminalDock = new TerminalDock(this);
+    terminalDock->hide();
+    addDockWidget(Qt::BottomDockWidgetArea, terminalDock);
+    terminalDock->toggleViewAction()->setShortcuts({QKeySequence("Ctrl+`"), QKeySequence("Ctrl+Shift+`")});
+    ui->menuView->addAction(terminalDock->toggleViewAction());
+    connect(terminalDock->toggleViewAction(), &QAction::toggled, terminalDock, [terminalDock](bool visible) {
+        if (visible)
+            terminalDock->focusInput();
+    });
+    if (fawDock->hasRoot())
+        terminalDock->setWorkingDirectory(fawDock->rootPath());
+    connect(fawDock, &FolderAsWorkspaceDock::openTerminalRequested, terminalDock, [terminalDock](const QString &dir) {
+        terminalDock->setWorkingDirectory(dir);
+        terminalDock->show();
+        terminalDock->raise();
+        terminalDock->focusInput();
+    });
+
+    QuickOpen *quickOpen = new QuickOpen(this);
+    QAction *goToFile = new QAction(tr("Go to File..."), this);
+    goToFile->setShortcut(QKeySequence("Ctrl+P"));
+    connect(goToFile, &QAction::triggered, quickOpen, &QuickOpen::showFiles);
+    QAction *commandPalette = new QAction(tr("Command Palette..."), this);
+    commandPalette->setShortcut(QKeySequence("Ctrl+Shift+P"));
+    connect(commandPalette, &QAction::triggered, quickOpen, &QuickOpen::showCommands);
+    ui->actionPrint->setShortcut(QKeySequence());
+    ui->actionPlayback->setShortcut(QKeySequence());
+    ui->menuSearch->insertActions(ui->menuSearch->actions().value(0), {goToFile, commandPalette});
+    ui->menuSearch->insertSeparator(ui->menuSearch->actions().value(2));
 
     FileListDock *fileListDock = new FileListDock(this);
     fileListDock->hide();
@@ -1055,7 +1062,9 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
     addDockWidget(Qt::RightDockWidgetArea, aiChatDock);
     aiChatDock->toggleViewAction()->setShortcut(QKeySequence("Ctrl+Shift+I"));
     ui->menuView->addAction(aiChatDock->toggleViewAction());
-    resizeDocks({fawDock, aiChatDock}, {220, 360}, Qt::Horizontal);
+    resizeDocks({fawDock, aiChatDock}, {240, 380}, Qt::Horizontal);
+    resizeDocks({terminalDock}, {220}, Qt::Vertical);
+    connect(fawDock, &FolderAsWorkspaceDock::addToChatRequested, aiChatDock, &AiChatDock::addMention);
 
     AiReviewManager *reviewManager = new AiReviewManager(this);
     aiChatDock->setReviewManager(reviewManager);
@@ -1125,6 +1134,13 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
     restoreSettings();
 
     initUpdateCheck();
+
+    // The first editor is shown before anything listens for activations; refresh the
+    // status bar and explorer once the startup files are open
+    QTimer::singleShot(0, this, [this]() {
+        if (ScintillaNext *editor = currentEditor())
+            activateEditor(editor);
+    });
 }
 
 MainWindow::~MainWindow()
@@ -1388,11 +1404,26 @@ void MainWindow::openFolderAsWorkspaceDialog()
     setFolderAsWorkspacePath(dir);
 }
 
-void MainWindow::updateWorkspaceName(const QString &dir)
+void MainWindow::workspacePathRenamed(const QString &oldPath, const QString &newPath)
 {
-    const QString name = QFileInfo(dir).fileName();
-    workspaceNameLabel->setText(dir.isEmpty() || QDir(dir).isRoot() ? tr("no folder open") : name);
-    workspaceNameLabel->setToolTip(dir);
+    // Keep open editors pointing at files that were renamed or moved in the explorer
+    const QString oldPrefix = QDir::cleanPath(oldPath) + '/';
+    for (ScintillaNext *editor : editors()) {
+        if (!editor->isFile())
+            continue;
+
+        const QString path = QDir::cleanPath(editor->getFilePath());
+        QString moved;
+        if (path == QDir::cleanPath(oldPath))
+            moved = newPath;
+        else if (path.startsWith(oldPrefix))
+            moved = QDir::cleanPath(newPath) + '/' + path.mid(oldPrefix.size());
+
+        if (!moved.isEmpty() && QFileInfo::exists(moved)) {
+            editor->setFileInfo(moved);
+            emit editor->renamed();
+        }
+    }
 }
 
 void MainWindow::setFolderAsWorkspacePath(const QString &dir)
@@ -1400,8 +1431,8 @@ void MainWindow::setFolderAsWorkspacePath(const QString &dir)
     if (!dir.isEmpty()) {
         FolderAsWorkspaceDock *fawDock = findChild<FolderAsWorkspaceDock *>();
         fawDock->setRootPath(dir);
-        updateWorkspaceName(dir);
         fawDock->setVisible(true);
+        findChild<TerminalDock *>()->setWorkingDirectory(dir);
     }
 }
 
@@ -2231,6 +2262,10 @@ void MainWindow::addEditor(ScintillaNext *editor)
     connect(editor, &ScintillaNext::renamed, this, [= ,this]() { detectLanguage(editor); });
     connect(editor, &ScintillaNext::renamed, this, [=, this]() { updateFileStatusBasedUi(editor); });
     connect(editor, &ScintillaNext::updateUi, this, &MainWindow::updateDocumentBasedUi);
+    connect(editor, &ScintillaNext::saved, this, [this]() {
+        if (FolderAsWorkspaceDock *workspace = findChild<FolderAsWorkspaceDock *>())
+            workspace->refreshGitStatus();
+    });
 
     // Scintilla pastes the primary selection on middle-click. Suppress an
     // accidental wheel-button press while Shift is held for horizontal scrolling.

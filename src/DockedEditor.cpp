@@ -18,6 +18,10 @@
 
 
 #include "DockedEditor.h"
+#include "UiIcons.h"
+
+#include <QApplication>
+#include <QPalette>
 #include "DockAreaTabBar.h"
 #include "DockAreaWidget.h"
 #include "DockWidgetTab.h"
@@ -195,19 +199,18 @@ void DockedEditor::addEditor(ScintillaNext *editor)
         dockWidget->tabWidget()->setToolTip(editor->getName());
     }
 
-    // Set the icon
-    if (editor->readOnly()) {
-        dockWidget->tabWidget()->setIcon(QIcon(":/icons/readonly.png"));
-    }
-    else {
-        dockWidget->tabWidget()->setIcon(QIcon(editor->canSaveToDisk() ? ":/icons/unsaved.png" : ":/icons/saved.png"));
-        connect(editor, &ScintillaNext::savePointChanged, dockWidget, [=, this](bool dirty) {
-            Q_UNUSED(dirty)
-            const bool actuallyDirty = editor->canSaveToDisk();
-            const QString iconPath = actuallyDirty ? ":/icons/unsaved.png" : ":/icons/saved.png";
-            dockWidget->tabWidget()->setIcon(QIcon(iconPath));
-        });
-    }
+    // Set the icon: the file type, or a dot while there are unsaved changes
+    auto updateIcon = [=]() {
+        if (editor->readOnly())
+            dockWidget->tabWidget()->setIcon(QIcon(":/icons/readonly.png"));
+        else if (editor->canSaveToDisk())
+            dockWidget->tabWidget()->setIcon(UiIcons::dotIcon(QApplication::palette().color(QPalette::WindowText)));
+        else
+            dockWidget->tabWidget()->setIcon(UiIcons::fileIcon(editor->getName()));
+    };
+    updateIcon();
+    connect(editor, &ScintillaNext::savePointChanged, dockWidget, updateIcon);
+    connect(editor, &ScintillaNext::renamed, dockWidget, updateIcon);
 
     connect(editor, &ScintillaNext::closed, dockWidget, &ads::CDockWidget::closeDockWidget);
     connect(editor, &ScintillaNext::closed, this, [=, this]() { emit editorClosed(editor); });
