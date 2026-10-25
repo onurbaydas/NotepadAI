@@ -21,7 +21,10 @@ Always rebuild after a change and fix every compiler error before finishing. Hea
 - `src/AiDiff.*` — line diff (LCS), hunks and rebuilding a text from chosen hunks.
 - `src/AiReviewManager.*` — in-editor review of AI changes: markers 18/19 for added lines, annotations for removed lines (shared annotation styles with ghost text via `annotationStyles()`), floating Keep/Undo bar. Agent edits and Ctrl+I go through it.
 - `src/AiAgentTools.*` — agent tools (list/read/search/edit/write files, run_command), path sandboxing to the workspace root, diff approval dialog.
-- `src/docks/` — dock panels. `AiChatDock.*` is the AI assistant (chat UI, streaming, agent loop); `FolderAsWorkspaceDock.*` is the file tree.
+- `src/docks/` — dock panels. `AiChatDock.*` is the AI assistant (chat UI, streaming, agent loop); `FolderAsWorkspaceDock.*` is the Explorer (file icons, git status via `git status --porcelain`, context menu, drag and drop moves; signals `pathRenamed` so MainWindow re-points open editors); `TerminalDock.*` runs each command in cmd/bash in the terminal's folder.
+- `src/QuickOpen.*` — Ctrl+P file finder (fuzzy, `file:line`) and Ctrl+Shift+P command palette (every menu action).
+- `src/UiIcons.*` — icons drawn in code (file-type badges, tool glyphs, unsaved dot).
+- `src/decorators/AutoCloseBrackets.*` — bracket/quote pairing, type-over, Backspace pair delete, `{}` + Enter.
 - `src/ScintillaNext.*` — editor widget (Scintilla). Use `getSelText()`, `getText(textLength() + 1)`, `replaceSel()`. Note `ScintillaEdit::setFocus(bool)` shadows `QWidget::setFocus()`; call `editor->QWidget::setFocus()`.
 - `thirdparty/` — vendored libraries (Scintilla, Lexilla, Lua, ...). Do not modify.
 - New source files must be listed in `src/CMakeLists.txt`.

@@ -35,13 +35,22 @@ Linux için `.AppImage`, macOS için `.dmg` dosyaları da aynı sayfada.
 - 💸 **Prompt caching** (Claude): tekrar gönderilen bağlam önbellekten okunur, maliyet ve gecikme ciddi düşer; kullanılan token sayısı panelin üstünde görünür
 - 🌙 **Koyu tema** (varsayılan, *View → Dark Theme* ile kapatılabilir); tüm diller için sözdizimi renkleri otomatik koyulaştırılır
 - 🔌 **Claude**, **OpenAI**, **OpenRouter** (tarayıcıdan giriş), **Ollama** ve tüm OpenAI-uyumlu servisler; yanıtlar canlı akar
-- 📁 **Dosya yöneticisi** (Folder as Workspace) varsayılan olarak açık
+- 📁 **Gezgin** (VS Code gibi): dosya türüne göre ikonlar, tek tıkla açma, sağ tık menüsü (*Yeni Dosya / Yeni Klasör / Yeniden Adlandır (F2) / Sil (Del, çöp kutusuna) / Yolu Kopyala / Terminalde Aç / AI Sohbetine Ekle*), sürükle-bırak ile taşıma, **git durumu** (değişen dosyalar sarı **M**, yeni dosyalar yeşil **U**), açık dosya ağaçta otomatik seçilir
+- 🔎 **Dosyaya git** (`Ctrl+P`): dosya adının birkaç harfiyle projedeki dosyayı bul; `dosya:42` ile satıra, `:42` ile açık dosyada satıra git
+- ⌨️ **Komut paleti** (`Ctrl+Shift+P`): menülerdeki her komutu adıyla bul ve çalıştır
+- 🖥️ **Gömülü terminal** (`` Ctrl+` ``): komutlar proje klasöründe çalışır (Windows'ta cmd, diğerlerinde bash), çıktı canlı akar, çalışan programa girdi yazılabilir, `Ctrl+C` durdurur
+- 🧩 **Editör**: parantez ve tırnakları otomatik kapatma, `{` + Enter ile girintili blok, modern yazı tipi (Cascadia / Consolas), katlama okları, sekmelerde dosya ikonu ve kaydedilmemiş değişiklik noktası
 - ✍️ Notepad++'tan alışık olunan her şey: Scintilla editörü, sözdizimi renklendirme, makrolar, çoklu imleç, arama/değiştirme, Lua betikleri
 
 ## Kısayollar
 
 | Kısayol | İşlev |
 |---|---|
+| `Ctrl+P` | Dosyaya git |
+| `Ctrl+Shift+P` | Komut paleti |
+| `` Ctrl+` `` | Terminali aç/kapat |
+| `Ctrl+Shift+E` | Gezgini aç/kapat |
+| `F2` / `Del` | Gezginde yeniden adlandır / sil |
 | `Ctrl+L` | AI sohbet kutusuna git |
 | `Ctrl+I` | Seçili kodu AI ile düzenle |
 | `Tab` / `Ctrl+→` | Gri öneriyi kabul et / bir kelimesini kabul et |
@@ -91,7 +100,7 @@ Windows/macOS için ayrıntılı talimatlar: [doc/Building.md](doc/Building.md)
 - [x] Koyu tema, OpenRouter ile tarayıcıdan giriş
 - [x] Yeni sohbet paneli tasarımı, Türkçe arayüz
 - [x] Editörde satır içi diff, sohbet içi komut onayı, `@dosya`, proje kuralları
-- [ ] Gömülü terminal paneli
+- [x] VS Code tarzı gezgin, dosyaya git, komut paleti, gömülü terminal, parantez tamamlama
 - [ ] LSP (tanıma git, hata altı çizgileri), Git arayüzü
 - [ ] API anahtarını işletim sisteminin anahtar zincirinde saklama
 
