@@ -70,6 +70,8 @@
 
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QHBoxLayout>
+#include <QToolButton>
 #include "EditorManager.h"
 #include "SearchResultsDock.h"
 #include "DebugLogDock.h"
@@ -1001,6 +1003,44 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
                                 });
 
     FolderAsWorkspaceDock *fawDock = new FolderAsWorkspaceDock(this);
+    fawDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+    {
+        QWidget *bar = new QWidget(fawDock);
+        bar->setObjectName("dockTitleBar");
+        QHBoxLayout *barLayout = new QHBoxLayout(bar);
+        barLayout->setContentsMargins(10, 4, 4, 4);
+        barLayout->setSpacing(2);
+        QLabel *title = new QLabel(tr("Explorer"), bar);
+        title->setObjectName("dockTitle");
+        workspaceNameLabel = new QLabel(bar);
+        workspaceNameLabel->setObjectName("dockStatus");
+        workspaceNameLabel->setMinimumWidth(10);
+        QToolButton *openFolder = new QToolButton(bar);
+        openFolder->setText("📂");
+        openFolder->setToolTip(tr("Open Folder as Workspace..."));
+        openFolder->setAutoRaise(true);
+        QToolButton *options = new QToolButton(bar);
+        options->setText("⋯");
+        options->setToolTip(tr("View options"));
+        options->setAutoRaise(true);
+        options->setPopupMode(QToolButton::InstantPopup);
+        options->setMenu(fawDock->optionsMenu());
+        options->setStyleSheet("QToolButton::menu-indicator { image: none; }");
+        QToolButton *closeDock = new QToolButton(bar);
+        closeDock->setText("✕");
+        closeDock->setToolTip(tr("Close"));
+        closeDock->setAutoRaise(true);
+        barLayout->addWidget(title);
+        barLayout->addSpacing(6);
+        barLayout->addWidget(workspaceNameLabel, 1);
+        barLayout->addWidget(openFolder);
+        barLayout->addWidget(options);
+        barLayout->addWidget(closeDock);
+        connect(openFolder, &QToolButton::clicked, this, &MainWindow::openFolderAsWorkspaceDialog);
+        connect(closeDock, &QToolButton::clicked, fawDock, &QDockWidget::close);
+        fawDock->setTitleBarWidget(bar);
+        updateWorkspaceName(fawDock->rootPath());
+    }
     addDockWidget(Qt::LeftDockWidgetArea, fawDock);
     ui->menuView->addAction(fawDock->toggleViewAction());
     connect(fawDock, &FolderAsWorkspaceDock::fileDoubleClicked, this, &MainWindow::openFile);
@@ -1029,6 +1069,10 @@ MainWindow::MainWindow(NotepadNextApplication *app) :
     QAction *focusChat = aiMenu->addAction(tr("Ask AI (Focus Chat)"), aiChatDock, &AiChatDock::focusInput);
     focusChat->setShortcut(QKeySequence("Ctrl+L"));
     aiMenu->addAction(inlineAssist->inlineEditAction());
+    aiMenu->addAction(tr("Explain Selection"), aiChatDock, [aiChatDock]() {
+        aiChatDock->focusInput();
+        aiChatDock->explainSelection();
+    });
     aiMenu->addSeparator();
     aiMenu->addAction(inlineAssist->autocompleteAction());
     aiMenu->addSeparator();
@@ -1339,11 +1383,19 @@ void MainWindow::openFolderAsWorkspaceDialog()
     setFolderAsWorkspacePath(dir);
 }
 
+void MainWindow::updateWorkspaceName(const QString &dir)
+{
+    const QString name = QFileInfo(dir).fileName();
+    workspaceNameLabel->setText(dir.isEmpty() || QDir(dir).isRoot() ? tr("no folder open") : name);
+    workspaceNameLabel->setToolTip(dir);
+}
+
 void MainWindow::setFolderAsWorkspacePath(const QString &dir)
 {
     if (!dir.isEmpty()) {
         FolderAsWorkspaceDock *fawDock = findChild<FolderAsWorkspaceDock *>();
         fawDock->setRootPath(dir);
+        updateWorkspaceName(dir);
         fawDock->setVisible(true);
     }
 }
@@ -2134,6 +2186,9 @@ void MainWindow::restoreWindowState()
     if (!restoreGeometry(settings->value("MainWindow/geometry").toByteArray()))
         resize(1280, 800);
     restoreState(settings->value("MainWindow/windowState").toByteArray());
+
+    // The saved window state includes the toolbar; the setting decides
+    ui->mainToolBar->setVisible(settings->showToolBar());
 
     // Always hide the dock no matter how the application was closed
     SearchResultsDock *srDock = findChild<SearchResultsDock *>();

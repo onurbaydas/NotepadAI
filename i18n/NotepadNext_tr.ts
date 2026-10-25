@@ -1902,6 +1902,42 @@
       <source>No updates are available at this time.</source>
       <translation>Şu anda kullanılabilir güncellemeler bulunmuyor.</translation>
     </message>
+      <message>
+      <source>&amp;AI</source>
+      <translation>&amp;AI</translation>
+    </message>
+    <message>
+      <source>Ask AI (Focus Chat)</source>
+      <translation>AI'a Sor (Sohbete Git)</translation>
+    </message>
+    <message>
+      <source>AI Settings...</source>
+      <translation>AI Ayarları...</translation>
+    </message>
+    <message>
+      <source>Dark Theme</source>
+      <translation>Koyu Tema</translation>
+    </message>
+    <message>
+      <source>Explain Selection</source>
+      <translation>Seçimi Açıkla</translation>
+    </message>
+    <message>
+      <source>Explorer</source>
+      <translation>Gezgin</translation>
+    </message>
+    <message>
+      <source>View options</source>
+      <translation>Görünüm seçenekleri</translation>
+    </message>
+    <message>
+      <source>Close</source>
+      <translation>Kapat</translation>
+    </message>
+    <message>
+      <source>no folder open</source>
+      <translation>açık klasör yok</translation>
+    </message>
   </context>
   <context>
     <name>PreferencesDialog</name>
@@ -2170,6 +2206,472 @@
       <location filename="../src/widgets/TabsQuickActionsBar.cpp" line="49"/>
       <source>Close the current file</source>
       <translation type="unfinished"/>
+    </message>
+  </context>
+  <context>
+    <name>AiChatDock</name>
+    <message>
+      <source>AI Assistant</source>
+      <translation>AI Asistan</translation>
+    </message>
+    <message>
+      <source>+ New</source>
+      <translation>+ Yeni</translation>
+    </message>
+    <message>
+      <source>Start a new chat</source>
+      <translation>Yeni sohbet başlat</translation>
+    </message>
+    <message>
+      <source>History</source>
+      <translation>Geçmiş</translation>
+    </message>
+    <message>
+      <source>Open an earlier chat</source>
+      <translation>Önceki bir sohbeti aç</translation>
+    </message>
+    <message>
+      <source>AI settings</source>
+      <translation>AI ayarları</translation>
+    </message>
+    <message>
+      <source>Close panel (Ctrl+Shift+I)</source>
+      <translation>Paneli kapat (Ctrl+Shift+I)</translation>
+    </message>
+    <message>
+      <source>Ask anything or describe a change...</source>
+      <translation>Bir şey sor ya da yapılacak değişikliği anlat...</translation>
+    </message>
+    <message>
+      <source>Agent</source>
+      <translation>Agent</translation>
+    </message>
+    <message>
+      <source>Chat</source>
+      <translation>Sohbet</translation>
+    </message>
+    <message>
+      <source>The AI can read and change files and run commands. You approve every change.</source>
+      <translation>AI dosyaları okuyup değiştirebilir ve komut çalıştırabilir. Her değişikliği sen onaylarsın.</translation>
+    </message>
+    <message>
+      <source>Only answers questions; sends the selection or open file along.</source>
+      <translation>Sadece soruları yanıtlar; seçili kodu ya da açık dosyayı da gönderir.</translation>
+    </message>
+    <message>
+      <source>Connect AI</source>
+      <translation>AI bağla</translation>
+    </message>
+    <message>
+      <source>Model: %1 (click to change)</source>
+      <translation>Model: %1 (değiştirmek için tıkla)</translation>
+    </message>
+    <message>
+      <source>%1 · %2 lines selected</source>
+      <translation>%1 · %2 satır seçili</translation>
+    </message>
+    <message>
+      <source>Sent to the AI with your message</source>
+      <translation>Mesajınla birlikte AI'a gönderilir</translation>
+    </message>
+    <message>
+      <source>Don't send</source>
+      <translation>Gönderme</translation>
+    </message>
+    <message>
+      <source>Not sent</source>
+      <translation>Gönderilmeyecek</translation>
+    </message>
+    <message>
+      <source>Send with the message</source>
+      <translation>Mesajla birlikte gönder</translation>
+    </message>
+    <message>
+      <source>Explain this code.</source>
+      <translation>Bu kodu açıkla.</translation>
+    </message>
+    <message>
+      <source>%1 tokens</source>
+      <translation>%1 token</translation>
+    </message>
+    <message>
+      <source>(%1 cached)</source>
+      <translation>(%1 önbellekten)</translation>
+    </message>
+    <message>
+      <source>Request stopped.</source>
+      <translation>İstek durduruldu.</translation>
+    </message>
+    <message>
+      <source>cancelled</source>
+      <translation>iptal edildi</translation>
+    </message>
+    <message>
+      <source>invalid arguments</source>
+      <translation>geçersiz parametreler</translation>
+    </message>
+    <message>
+      <source>Stopped after %1 steps. Send a message to continue.</source>
+      <translation>%1 adımdan sonra durdu. Devam etmek için mesaj gönder.</translation>
+    </message>
+    <message>
+      <source>Restore Checkpoint</source>
+      <translation>Değişiklikleri Geri Al</translation>
+    </message>
+    <message>
+      <source>Revert %1 file(s) changed by the AI since this message and remove the conversation from this message on?
+
+Effects of commands the AI ran (for example installed packages) are not undone.</source>
+      <translation>AI'ın bu mesajdan sonra değiştirdiği %1 dosya eski haline getirilsin ve sohbet bu mesajdan itibaren silinsin mi?
+
+AI'ın çalıştırdığı komutların etkileri (örneğin kurulan paketler) geri alınmaz.</translation>
+    </message>
+    <message>
+      <source>Could not restore: %1</source>
+      <translation>Geri alınamadı: %1</translation>
+    </message>
+    <message>
+      <source>No saved chats</source>
+      <translation>Kayıtlı sohbet yok</translation>
+    </message>
+    <message>
+      <source>Delete Current Chat</source>
+      <translation>Bu Sohbeti Sil</translation>
+    </message>
+    <message>
+      <source>Stop</source>
+      <translation>Durdur</translation>
+    </message>
+    <message>
+      <source>Send (Enter)</source>
+      <translation>Gönder (Enter)</translation>
+    </message>
+  </context>
+  <context>
+    <name>AiChatView</name>
+    <message>
+      <source>Older messages were removed to stay within the context limit.</source>
+      <translation>Bağlam sınırını aşmamak için eski mesajlar çıkarıldı.</translation>
+    </message>
+    <message>
+      <source>Working: %1</source>
+      <translation>Çalışıyor: %1</translation>
+    </message>
+    <message>
+      <source>Thinking</source>
+      <translation>Düşünüyor</translation>
+    </message>
+    <message>
+      <source>Writing</source>
+      <translation>Yazıyor</translation>
+    </message>
+    <message>
+      <source>What should we build?</source>
+      <translation>Ne yapalım?</translation>
+    </message>
+    <message>
+      <source>The AI can read your project, change files (you approve every change) and run commands. Open your project with File &gt; Open Folder as Workspace.</source>
+      <translation>AI projeni okuyabilir, dosyaları değiştirebilir (her değişikliği sen onaylarsın) ve komut çalıştırabilir. Projeni Dosya &gt; Klasörü Çalışma Alanı Olarak Aç ile aç.</translation>
+    </message>
+    <message>
+      <source>Explain how this project works</source>
+      <translation>Bu proje nasıl çalışıyor, anlat</translation>
+    </message>
+    <message>
+      <source>Find and fix bugs in the open file</source>
+      <translation>Açık dosyadaki hataları bul ve düzelt</translation>
+    </message>
+    <message>
+      <source>Write tests for the open file</source>
+      <translation>Açık dosya için testler yaz</translation>
+    </message>
+    <message>
+      <source>Ctrl+I: edit the selection with AI   ·   Tab: accept a suggestion   ·   Ctrl+L: ask here</source>
+      <translation>Ctrl+I: seçimi AI ile düzenle   ·   Tab: öneriyi kabul et   ·   Ctrl+L: buraya sor</translation>
+    </message>
+    <message>
+      <source>Undo changes from here (%1 files)</source>
+      <translation>Buradan sonraki değişiklikleri geri al (%1 dosya)</translation>
+    </message>
+    <message>
+      <source>Revert the files the AI changed after this message and edit the message again</source>
+      <translation>AI'ın bu mesajdan sonra değiştirdiği dosyaları eski haline getir ve mesajı yeniden düzenle</translation>
+    </message>
+    <message>
+      <source>code</source>
+      <translation>kod</translation>
+    </message>
+    <message>
+      <source>Copy</source>
+      <translation>Kopyala</translation>
+    </message>
+    <message>
+      <source>Insert into editor</source>
+      <translation>Editöre ekle</translation>
+    </message>
+    <message>
+      <source>Insert at the cursor (replaces the selection)</source>
+      <translation>İmlecin olduğu yere ekle (seçili metnin yerine geçer)</translation>
+    </message>
+    <message>
+      <source>Copied</source>
+      <translation>Kopyalandı</translation>
+    </message>
+    <message>
+      <source>Looked through the files</source>
+      <translation>Dosyalara göz attı</translation>
+    </message>
+    <message>
+      <source>Read %1</source>
+      <translation>%1 okundu</translation>
+    </message>
+    <message>
+      <source>Searched for %1</source>
+      <translation>%1 arandı</translation>
+    </message>
+    <message>
+      <source>Edited %1</source>
+      <translation>%1 düzenlendi</translation>
+    </message>
+    <message>
+      <source>Wrote %1</source>
+      <translation>%1 yazıldı</translation>
+    </message>
+    <message>
+      <source>Ran %1</source>
+      <translation>%1 çalıştırıldı</translation>
+    </message>
+  </context>
+  <context>
+    <name>AiInlineAssist</name>
+    <message>
+      <source>AI Edit Selection...</source>
+      <translation>Seçimi AI ile Düzenle...</translation>
+    </message>
+    <message>
+      <source>Describe a change to the selected code (or current line) and review the result</source>
+      <translation>Seçili kod (ya da bulunduğun satır) için bir değişiklik anlat ve sonucu incele</translation>
+    </message>
+    <message>
+      <source>AI Autocomplete</source>
+      <translation>AI Otomatik Tamamlama</translation>
+    </message>
+    <message>
+      <source>Describe the change, e.g. "add error handling" (Enter to run, Esc to cancel)</source>
+      <translation>Değişikliği anlat, ör. "hata kontrolü ekle" (Enter: çalıştır, Esc: vazgeç)</translation>
+    </message>
+    <message>
+      <source>Generating...</source>
+      <translation>Oluşturuluyor...</translation>
+    </message>
+    <message>
+      <source>AI Edit</source>
+      <translation>AI Düzenleme</translation>
+    </message>
+    <message>
+      <source>AI Edit: %1</source>
+      <translation>AI Düzenleme: %1</translation>
+    </message>
+    <message>
+      <source>The text changed while the AI was working. Try again.</source>
+      <translation>AI çalışırken metin değişti. Tekrar dene.</translation>
+    </message>
+  </context>
+  <context>
+    <name>AiAgentTools</name>
+    <message>
+      <source>unknown tool</source>
+      <translation>bilinmeyen araç</translation>
+    </message>
+    <message>
+      <source>not a folder</source>
+      <translation>klasör değil</translation>
+    </message>
+    <message>
+      <source>empty folder</source>
+      <translation>boş klasör</translation>
+    </message>
+    <message>
+      <source>%1 entries</source>
+      <translation>%1 öğe</translation>
+    </message>
+    <message>
+      <source>%1 lines</source>
+      <translation>%1 satır</translation>
+    </message>
+    <message>
+      <source>invalid pattern</source>
+      <translation>geçersiz arama ifadesi</translation>
+    </message>
+    <message>
+      <source>no matches</source>
+      <translation>eşleşme yok</translation>
+    </message>
+    <message>
+      <source>%1 matches</source>
+      <translation>%1 eşleşme</translation>
+    </message>
+    <message>
+      <source>empty old_string</source>
+      <translation>eski metin boş</translation>
+    </message>
+    <message>
+      <source>text not found</source>
+      <translation>metin bulunamadı</translation>
+    </message>
+    <message>
+      <source>text not unique</source>
+      <translation>metin birden fazla yerde geçiyor</translation>
+    </message>
+    <message>
+      <source>path is a folder</source>
+      <translation>yol bir klasör</translation>
+    </message>
+    <message>
+      <source>no changes</source>
+      <translation>değişiklik yok</translation>
+    </message>
+    <message>
+      <source>Create file: %1</source>
+      <translation>Dosya oluştur: %1</translation>
+    </message>
+    <message>
+      <source>Edit file: %1</source>
+      <translation>Dosyayı düzenle: %1</translation>
+    </message>
+    <message>
+      <source>rejected by user</source>
+      <translation>reddedildi</translation>
+    </message>
+    <message>
+      <source>write failed</source>
+      <translation>yazılamadı</translation>
+    </message>
+    <message>
+      <source>created</source>
+      <translation>oluşturuldu</translation>
+    </message>
+    <message>
+      <source>applied</source>
+      <translation>uygulandı</translation>
+    </message>
+    <message>
+      <source>empty command</source>
+      <translation>boş komut</translation>
+    </message>
+    <message>
+      <source>no workspace</source>
+      <translation>çalışma klasörü yok</translation>
+    </message>
+    <message>
+      <source>The AI wants to run this command:</source>
+      <translation>AI şu komutu çalıştırmak istiyor:</translation>
+    </message>
+    <message>
+      <source>in %1</source>
+      <translation>%1 klasöründe</translation>
+    </message>
+    <message>
+      <source>Run command</source>
+      <translation>Komut çalıştır</translation>
+    </message>
+    <message>
+      <source>failed to start</source>
+      <translation>başlatılamadı</translation>
+    </message>
+    <message>
+      <source>timed out</source>
+      <translation>zaman aşımı</translation>
+    </message>
+    <message>
+      <source>exit code %1</source>
+      <translation>çıkış kodu %1</translation>
+    </message>
+    <message>
+      <source>Accept</source>
+      <translation>Uygula</translation>
+    </message>
+    <message>
+      <source>Reject</source>
+      <translation>Reddet</translation>
+    </message>
+  </context>
+  <context>
+    <name>AiClient</name>
+    <message>
+      <source>AI Settings</source>
+      <translation>AI Ayarları</translation>
+    </message>
+    <message>
+      <source>Sign in with OpenRouter (browser)</source>
+      <translation>OpenRouter ile giriş yap (tarayıcı)</translation>
+    </message>
+    <message>
+      <source>Log in in your browser; no API key copy-paste needed. Gives access to Claude, GPT, Gemini and more.</source>
+      <translation>Tarayıcıda giriş yap; API anahtarı kopyalamaya gerek yok. Claude, GPT, Gemini ve daha fazlasına erişim sağlar.</translation>
+    </message>
+    <message>
+      <source>Not needed for local Ollama</source>
+      <translation>Yerel Ollama için gerekmez</translation>
+    </message>
+    <message>
+      <source>Same as chat model</source>
+      <translation>Sohbet modeliyle aynı</translation>
+    </message>
+    <message>
+      <source>Suggest code while typing (accept with Tab)</source>
+      <translation>Yazarken kod öner (Tab ile kabul et)</translation>
+    </message>
+    <message>
+      <source>Apply the agent's file changes without asking (commands always ask)</source>
+      <translation>Agent'ın dosya değişikliklerini sormadan uygula (komutlar her zaman sorar)</translation>
+    </message>
+    <message>
+      <source>Ollama: choose OpenAI-compatible, URL http://localhost:11434/v1, model e.g. qwen2.5-coder. Agent mode needs a model that supports tool calling.</source>
+      <translation>Ollama: OpenAI-uyumlu seç, adres http://localhost:11434/v1, model ör. qwen2.5-coder. Agent modu araç çağırmayı destekleyen bir model ister.</translation>
+    </message>
+    <message>
+      <source>Waiting for the browser login...</source>
+      <translation>Tarayıcıdaki giriş bekleniyor...</translation>
+    </message>
+    <message>
+      <source>Sign in failed: %1</source>
+      <translation>Giriş başarısız: %1</translation>
+    </message>
+    <message>
+      <source>Signed in. Press OK to save. You can pick any model listed on openrouter.ai/models.</source>
+      <translation>Giriş yapıldı. Kaydetmek için Tamam'a bas. openrouter.ai/models adresindeki herhangi bir modeli seçebilirsin.</translation>
+    </message>
+    <message>
+      <source>Provider:</source>
+      <translation>Sağlayıcı:</translation>
+    </message>
+    <message>
+      <source>Base URL:</source>
+      <translation>Adres (URL):</translation>
+    </message>
+    <message>
+      <source>API Key:</source>
+      <translation>API anahtarı:</translation>
+    </message>
+    <message>
+      <source>Model:</source>
+      <translation>Model:</translation>
+    </message>
+    <message>
+      <source>Autocomplete model:</source>
+      <translation>Tamamlama modeli:</translation>
+    </message>
+  </context>
+  <context>
+    <name>OpenRouterLogin</name>
+    <message>
+      <source>Port %1 is in use. Close the program using it and try again.</source>
+      <translation>%1 portu kullanımda. Onu kullanan programı kapatıp tekrar dene.</translation>
+    </message>
+    <message>
+      <source>Timed out waiting for the browser.</source>
+      <translation>Tarayıcı beklenirken zaman aşımı oldu.</translation>
     </message>
   </context>
 </TS>

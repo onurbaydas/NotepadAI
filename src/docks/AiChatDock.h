@@ -25,15 +25,16 @@
 #include <QPointer>
 
 class AiAgentTools;
+class AiChatView;
 class MainWindow;
-class QCheckBox;
+class QComboBox;
+class QFrame;
 class QLabel;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QPlainTextEdit;
-class QPushButton;
-class QTextBrowser;
-class QUrl;
+class QTimer;
+class QToolButton;
 
 // Dockable AI assistant that talks to Anthropic (Claude) or any
 // OpenAI-compatible endpoint (OpenAI, Ollama, LM Studio, OpenRouter...).
@@ -47,6 +48,7 @@ public:
     explicit AiChatDock(MainWindow *window);
 
     void focusInput();
+    void explainSelection();
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -56,9 +58,8 @@ private slots:
     void stopRequest();
     void newChat();
     void showHistoryMenu();
-    void insertLastCodeBlock();
-    void explainSelection();
-    void linkClicked(const QUrl &url);
+    void insertCode(const QString &code);
+    void openFile(const QString &path);
 
 private:
     struct PendingToolCall {
@@ -69,6 +70,13 @@ private:
 
     // Original state of a file before the agent first changed it in a turn
     using FileSnapshot = QPair<bool, QString>;  // existed, content
+
+    QWidget *createTitleBar();
+    QFrame *createComposer();
+    void updateContextChip();
+    void updateComposerHeight();
+    void updateModelButton();
+    bool isAgentMode() const;
 
     QString buildContext() const;
     QString systemPrompt() const;
@@ -83,6 +91,7 @@ private:
     void runToolCalls();
     void restoreCheckpoint(int turn);
     void renderChat();
+    void updateLive();
     void setBusy(bool busy);
 
     QString chatsDirectory() const;
@@ -95,17 +104,18 @@ private:
     QPointer<QNetworkReply> reply;
     QByteArray streamBuffer;
 
-    QTextBrowser *chatView;
+    AiChatView *chatView;
     QPlainTextEdit *input;
-    QCheckBox *includeContext;
-    QCheckBox *agentMode;
-    QCheckBox *autoApprove;
-    QPushButton *sendButton;
-    QPushButton *clearButton;
-    QPushButton *historyButton;
-    QPushButton *stopButton;
-    QPushButton *insertButton;
+    QComboBox *modeCombo;
+    QToolButton *modelButton;
+    QToolButton *sendButton;
+    QToolButton *newChatButton;
+    QToolButton *historyButton;
     QLabel *statusLabel;
+    QLabel *contextChip;
+    QToolButton *contextToggle;
+    QTimer *contextTimer;
+    bool contextEnabled = true;
 
     // Provider-neutral conversation:
     //   {role: "user", content, display, turn}
@@ -124,4 +134,5 @@ private:
     bool stopRequested = false;
     bool runningTools = false;
     int agentSteps = 0;
+    QString currentTool;
 };

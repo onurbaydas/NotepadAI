@@ -27,6 +27,7 @@ Linux için `.AppImage`, macOS için `.dmg` dosyaları da aynı sayfada.
 - ↶ **Checkpoint**: her mesajın altındaki *Restore checkpoint* ile o mesajdan sonra AI'ın değiştirdiği tüm dosyalar geri alınır, mesaj düzenlenip tekrar gönderilebilir
 - ✏️ **Satır içi düzenleme** (`Ctrl+I`): kodu seç, ne istediğini yaz, diff'i onayla
 - 👻 **Yazarken öneri** (ghost text): yazmayı bırakınca gri öneri çıkar, **Tab** ile kabul, yazmaya devam edersen kaybolur
+- 🎨 **Sade arayüz**: Cursor tarzı sohbet paneli (mesaj kartları, *Kopyala / Editöre ekle* butonlu kod blokları, tek satırlık adım özetleri), mesaj kutusunda **Agent / Sohbet** seçimi ve model adı, gönderilecek dosyayı gösteren etiket; Türkçe arayüz
 - 💬 **Sohbet geçmişi**: sohbetler otomatik kaydedilir, **History** ile geri açılır
 - 🧠 **Bağlam yönetimi**: uzun agent oturumlarında eski araç çıktıları otomatik kısaltılır, gerekirse en eski mesajlar atılır
 - 💸 **Prompt caching** (Claude): tekrar gönderilen bağlam önbellekten okunur, maliyet ve gecikme ciddi düşer; kullanılan token sayısı panelin üstünde görünür
@@ -42,7 +43,7 @@ Linux için `.AppImage`, macOS için `.dmg` dosyaları da aynı sayfada.
 | `Ctrl+L` | AI sohbet kutusuna git |
 | `Ctrl+I` | Seçili kodu AI ile düzenle |
 | `Tab` | Gri öneriyi kabul et |
-| `Ctrl+Enter` | Sohbette mesaj gönder |
+| `Enter` | Sohbette mesaj gönder (`Shift+Enter`: yeni satır) |
 | `Ctrl+Shift+I` | AI panelini aç/kapat |
 
 Hepsi menü çubuğundaki **AI** menüsünde de var.
@@ -86,11 +87,11 @@ Windows/macOS için ayrıntılı talimatlar: [doc/Building.md](doc/Building.md)
 - [x] Satır içi düzenleme, yazarken öneri
 - [x] Sohbet geçmişi, bağlam yönetimi, prompt caching
 - [x] Koyu tema, OpenRouter ile tarayıcıdan giriş
+- [x] Yeni sohbet paneli tasarımı, Türkçe arayüz
 - [ ] `@dosya` ile bağlam ekleme, proje kuralları (`AGENTS.md`)
 - [ ] Gömülü terminal paneli
 - [ ] LSP (tanıma git, hata altı çizgileri), Git arayüzü
 - [ ] API anahtarını işletim sisteminin anahtar zincirinde saklama
-- [ ] Türkçe arayüz
 
 ## Lisans
 

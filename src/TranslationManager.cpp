@@ -27,7 +27,7 @@
 QString TranslationFileNameToLocaleName(const QString &baseName)
 {
     // return "zh_CN" from "NotepadNext_zh_CN"
-    return baseName.mid(QApplication::applicationName().length() + 1); // +1 for the underscore
+    return baseName.mid(QStringLiteral("NotepadNext").length() + 1); // +1 for the underscore
 }
 
 
@@ -44,7 +44,7 @@ QStringList TranslationManager::availableTranslations() const
     while (it.hasNext()) {
         it.next();
 
-        if (it.fileName().startsWith(QApplication::applicationName())) { // Some are Qt translation files, not for the application
+        if (it.fileName().startsWith(QStringLiteral("NotepadNext"))) { // Some are Qt translation files, not for the application
             QString localeName = TranslationFileNameToLocaleName(it.fileInfo().baseName());
 
             translations.append(localeName);
@@ -75,7 +75,8 @@ void TranslationManager::loadTranslation(QLocale locale)
 {
     qInfo(Q_FUNC_INFO);
 
-    const QStringList filenames{QStringList{QApplication::applicationName(), "qt", "qtbase"}};
+    // The .qm files keep the original project name even though the application is called NotepadAI
+    const QStringList filenames{QStringList{QStringLiteral("NotepadNext"), "qt", "qtbase"}};
 
     for (const auto& filename : filenames) {
         std::unique_ptr<QTranslator> translator = std::make_unique<QTranslator>();

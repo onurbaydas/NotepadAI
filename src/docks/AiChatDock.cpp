@@ -19,10 +19,13 @@
 
 #include "AiAgentTools.h"
 #include "AiClient.h"
+#include "AiChatView.h"
 #include "MainWindow.h"
 #include "ScintillaNext.h"
 
-#include <QCheckBox>
+#include <QComboBox>
+#include <QFrame>
+#include <QToolButton>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -43,7 +46,6 @@
 #include <QSaveFile>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QTextBrowser>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -120,86 +122,43 @@ AiChatDock::AiChatDock(MainWindow *window) :
     QDockWidget(window),
     window(window),
     tools(new AiAgentTools(window)),
-    network(new QNetworkAccessManager(this))
+    network(new QNetworkAccessManager(this)),
+    contextTimer(new QTimer(this))
 {
     setObjectName("AiChatDock");
     setWindowTitle(tr("AI Assistant"));
-
-    QSettings settings;
+    setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable);
+    setTitleBarWidget(createTitleBar());
 
     QWidget *container = new QWidget(this);
+    container->setObjectName("aiDockContent");
     QVBoxLayout *layout = new QVBoxLayout(container);
-    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setContentsMargins(0, 0, 0, 8);
+    layout->setSpacing(6);
 
-    QHBoxLayout *toolbar = new QHBoxLayout();
-    statusLabel = new QLabel(container);
-    statusLabel->setStyleSheet("color: gray;");
-    statusLabel->setMinimumWidth(40);
-    QPushButton *settingsButton = new QPushButton(tr("Settings"), container);
-    historyButton = new QPushButton(tr("History"), container);
-    clearButton = new QPushButton(tr("New Chat"), container);
-    toolbar->addWidget(statusLabel, 1);
-    toolbar->addWidget(clearButton);
-    toolbar->addWidget(historyButton);
-    toolbar->addWidget(settingsButton);
-    layout->addLayout(toolbar);
-
-    chatView = new QTextBrowser(container);
-    chatView->setOpenLinks(false);
+    chatView = new AiChatView(container);
     layout->addWidget(chatView, 1);
 
-    input = new QPlainTextEdit(container);
-    input->setPlaceholderText(tr("Ask something or describe a change... (Ctrl+Enter to send)"));
-    input->setMaximumHeight(110);
-    input->installEventFilter(this);
-    setMinimumWidth(260);
-    layout->addWidget(input);
-
-    QHBoxLayout *options = new QHBoxLayout();
-    agentMode = new QCheckBox(tr("Agent mode"), container);
-    agentMode->setToolTip(tr("Let the AI read, search and edit files in the workspace and run commands"));
-    agentMode->setChecked(settings.value("AI/AgentMode", true).toBool());
-    autoApprove = new QCheckBox(tr("Auto-apply edits"), container);
-    autoApprove->setToolTip(tr("Apply file edits without showing the diff first. Commands always ask."));
-    autoApprove->setChecked(settings.value("AI/AutoApprove", false).toBool());
-    includeContext = new QCheckBox(tr("Send selection / file"), container);
-    includeContext->setChecked(true);
-    options->addWidget(agentMode);
-    options->addWidget(autoApprove);
-    options->addWidget(includeContext);
-    options->addStretch(1);
-    layout->addLayout(options);
-
-    QHBoxLayout *actions = new QHBoxLayout();
-    QPushButton *explainButton = new QPushButton(tr("Explain"), container);
-    explainButton->setToolTip(tr("Explain the selected code"));
-    insertButton = new QPushButton(tr("Insert Code"), container);
-    insertButton->setToolTip(tr("Insert the last code block of the answer into the editor (replaces the selection)"));
-    stopButton = new QPushButton(tr("Stop"), container);
-    sendButton = new QPushButton(tr("Send"), container);
-    sendButton->setDefault(true);
-    actions->addWidget(explainButton);
-    actions->addWidget(insertButton);
-    actions->addStretch(1);
-    actions->addWidget(stopButton);
-    actions->addWidget(sendButton);
-    layout->addLayout(actions);
+    QHBoxLayout *composerRow = new QHBoxLayout;
+    composerRow->setContentsMargins(8, 0, 8, 0);
+    composerRow->addWidget(createComposer());
+    layout->addLayout(composerRow);
 
     setWidget(container);
+    setMinimumWidth(280);
 
-    connect(sendButton, &QPushButton::clicked, this, &AiChatDock::sendMessage);
-    connect(stopButton, &QPushButton::clicked, this, &AiChatDock::stopRequest);
-    connect(clearButton, &QPushButton::clicked, this, &AiChatDock::newChat);
-    connect(historyButton, &QPushButton::clicked, this, &AiChatDock::showHistoryMenu);
-    connect(settingsButton, &QPushButton::clicked, this, [this]() {
-        if (AiClient::showSettings(this))
-            renderChat();
+    connect(chatView, &AiChatView::restoreRequested, this, &AiChatDock::restoreCheckpoint);
+    connect(chatView, &AiChatView::insertCodeRequested, this, &AiChatDock::insertCode);
+    connect(chatView, &AiChatView::openFileRequested, this, &AiChatDock::openFile);
+    connect(chatView, &AiChatView::suggestionClicked, this, [this](const QString &prompt) {
+        if (!reply && !runningTools)
+            addUserMessage(prompt);
     });
-    connect(insertButton, &QPushButton::clicked, this, &AiChatDock::insertLastCodeBlock);
-    connect(explainButton, &QPushButton::clicked, this, &AiChatDock::explainSelection);
-    connect(chatView, &QTextBrowser::anchorClicked, this, &AiChatDock::linkClicked);
-    connect(agentMode, &QCheckBox::toggled, this, [](bool checked) { QSettings().setValue("AI/AgentMode", checked); });
-    connect(autoApprove, &QCheckBox::toggled, this, [](bool checked) { QSettings().setValue("AI/AutoApprove", checked); });
+
+    // Keep the "what will be sent" chip in sync with the editor selection
+    contextTimer->setInterval(500);
+    connect(contextTimer, &QTimer::timeout, this, &AiChatDock::updateContextChip);
+    contextTimer->start();
 
     // Remember what each file looked like before the agent first touched it in a turn
     tools->beforeChange = [this](const QString &path, bool existed, const QString &content) {
@@ -210,12 +169,188 @@ AiChatDock::AiChatDock(MainWindow *window) :
 
     setBusy(false);
     renderChat();
+    updateContextChip();
+}
+
+QWidget *AiChatDock::createTitleBar()
+{
+    QWidget *bar = new QWidget(this);
+    bar->setObjectName("dockTitleBar");
+    QHBoxLayout *layout = new QHBoxLayout(bar);
+    layout->setContentsMargins(10, 4, 4, 4);
+    layout->setSpacing(2);
+
+    QLabel *title = new QLabel(tr("AI Assistant"), bar);
+    title->setObjectName("dockTitle");
+    statusLabel = new QLabel(bar);
+    statusLabel->setObjectName("dockStatus");
+    statusLabel->setMinimumWidth(10);
+
+    auto makeButton = [bar](const QString &text, const QString &tip) {
+        QToolButton *button = new QToolButton(bar);
+        button->setText(text);
+        button->setToolTip(tip);
+        button->setAutoRaise(true);
+        button->setCursor(Qt::PointingHandCursor);
+        return button;
+    };
+    newChatButton = makeButton(tr("+ New"), tr("Start a new chat"));
+    historyButton = makeButton(tr("History"), tr("Open an earlier chat"));
+    QToolButton *settingsButton = makeButton("⚙", tr("AI settings"));
+    QToolButton *closeButton = makeButton("✕", tr("Close panel (Ctrl+Shift+I)"));
+
+    layout->addWidget(title);
+    layout->addSpacing(6);
+    layout->addWidget(statusLabel, 1);
+    layout->addWidget(newChatButton);
+    layout->addWidget(historyButton);
+    layout->addWidget(settingsButton);
+    layout->addWidget(closeButton);
+
+    connect(newChatButton, &QToolButton::clicked, this, &AiChatDock::newChat);
+    connect(historyButton, &QToolButton::clicked, this, &AiChatDock::showHistoryMenu);
+    connect(settingsButton, &QToolButton::clicked, this, [this]() {
+        if (AiClient::showSettings(this))
+            renderChat();
+    });
+    connect(closeButton, &QToolButton::clicked, this, &QDockWidget::close);
+    return bar;
+}
+
+QFrame *AiChatDock::createComposer()
+{
+    QFrame *frame = new QFrame(this);
+    frame->setObjectName("composer");
+    QVBoxLayout *layout = new QVBoxLayout(frame);
+    layout->setContentsMargins(8, 6, 6, 6);
+    layout->setSpacing(4);
+
+    QHBoxLayout *contextRow = new QHBoxLayout;
+    contextRow->setSpacing(2);
+    contextChip = new QLabel(frame);
+    contextChip->setObjectName("contextChip");
+    contextToggle = new QToolButton(frame);
+    contextToggle->setObjectName("contextToggle");
+    contextToggle->setAutoRaise(true);
+    contextToggle->setCursor(Qt::PointingHandCursor);
+    contextRow->addWidget(contextChip);
+    contextRow->addWidget(contextToggle);
+    contextRow->addStretch(1);
+    layout->addLayout(contextRow);
+
+    input = new QPlainTextEdit(frame);
+    input->setObjectName("composerInput");
+    input->setFrameShape(QFrame::NoFrame);
+    input->setPlaceholderText(tr("Ask anything or describe a change..."));
+    input->setTabChangesFocus(true);
+    input->installEventFilter(this);
+    layout->addWidget(input);
+
+    QHBoxLayout *bottom = new QHBoxLayout;
+    bottom->setSpacing(4);
+    modeCombo = new QComboBox(frame);
+    modeCombo->setObjectName("modeCombo");
+    modeCombo->addItem(tr("Agent"), "agent");
+    modeCombo->addItem(tr("Chat"), "chat");
+    modeCombo->setItemData(0, tr("The AI can read and change files and run commands. You approve every change."), Qt::ToolTipRole);
+    modeCombo->setItemData(1, tr("Only answers questions; sends the selection or open file along."), Qt::ToolTipRole);
+    modeCombo->setCurrentIndex(QSettings().value("AI/AgentMode", true).toBool() ? 0 : 1);
+    modelButton = new QToolButton(frame);
+    modelButton->setObjectName("modelButton");
+    modelButton->setAutoRaise(true);
+    modelButton->setCursor(Qt::PointingHandCursor);
+    sendButton = new QToolButton(frame);
+    sendButton->setObjectName("sendButton");
+    sendButton->setCursor(Qt::PointingHandCursor);
+    bottom->addWidget(modeCombo);
+    bottom->addWidget(modelButton);
+    bottom->addStretch(1);
+    bottom->addWidget(sendButton);
+    layout->addLayout(bottom);
+
+    connect(modeCombo, &QComboBox::currentIndexChanged, this, [this]() {
+        QSettings().setValue("AI/AgentMode", isAgentMode());
+        updateContextChip();
+    });
+    connect(modelButton, &QToolButton::clicked, this, [this]() {
+        if (AiClient::showSettings(this))
+            renderChat();
+    });
+    connect(sendButton, &QToolButton::clicked, this, [this]() {
+        if (reply || runningTools)
+            stopRequest();
+        else
+            sendMessage();
+    });
+    connect(contextToggle, &QToolButton::clicked, this, [this]() {
+        contextEnabled = !contextEnabled;
+        updateContextChip();
+    });
+    connect(input, &QPlainTextEdit::textChanged, this, &AiChatDock::updateComposerHeight);
+
+    updateComposerHeight();
+    updateModelButton();
+    return frame;
+}
+
+bool AiChatDock::isAgentMode() const
+{
+    return modeCombo->currentData().toString() == "agent";
+}
+
+void AiChatDock::updateComposerHeight()
+{
+    const int lines = qBound(2, static_cast<int>(input->document()->size().height()), 8);
+    input->setFixedHeight(input->fontMetrics().lineSpacing() * lines + 10);
+}
+
+void AiChatDock::updateModelButton()
+{
+    const AiClient::Provider p = AiClient::load();
+    QString model = p.model.isEmpty() ? tr("Connect AI") : p.model.section('/', -1);
+    modelButton->setText(model + "  ▾");
+    modelButton->setToolTip(tr("Model: %1 (click to change)").arg(p.model));
+}
+
+void AiChatDock::updateContextChip()
+{
+    if (!isVisible())
+        return;
+
+    ScintillaNext *editor = window->currentEditor();
+    if (!editor) {
+        contextChip->hide();
+        contextToggle->hide();
+        return;
+    }
+
+    QString text = editor->getName();
+    if (!editor->selectionEmpty()) {
+        const int lines = editor->lineFromPosition(editor->selectionEnd()) - editor->lineFromPosition(editor->selectionStart()) + 1;
+        text = tr("%1 · %2 lines selected").arg(text).arg(lines);
+    }
+
+    if (contextEnabled) {
+        contextChip->setText("📄 " + text);
+        contextChip->setToolTip(tr("Sent to the AI with your message"));
+        contextToggle->setText("✕");
+        contextToggle->setToolTip(tr("Don't send"));
+    }
+    else {
+        contextChip->setText("<s>" + text.toHtmlEscaped() + "</s>");
+        contextChip->setToolTip(tr("Not sent"));
+        contextToggle->setText("+");
+        contextToggle->setToolTip(tr("Send with the message"));
+    }
+    contextChip->show();
+    contextToggle->show();
 }
 
 void AiChatDock::focusInput()
 {
     show();
     raise();
+    updateContextChip();
     input->setFocus();
 }
 
@@ -223,8 +358,10 @@ bool AiChatDock::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == input && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
-        if ((keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) && (keyEvent->modifiers() & Qt::ControlModifier)) {
-            sendMessage();
+        // Enter sends, Shift+Enter starts a new line
+        if ((keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) && !(keyEvent->modifiers() & Qt::ShiftModifier)) {
+            if (!reply && !runningTools)
+                sendMessage();
             return true;
         }
     }
@@ -241,7 +378,7 @@ QString AiChatDock::buildContext() const
     QString kind = "Selected code";
     if (text.isEmpty()) {
         // In agent mode the model reads files itself
-        if (agentMode->isChecked())
+        if (isAgentMode())
             return QString();
         text = QString::fromUtf8(editor->getText(editor->textLength() + 1));
         kind = "Current file";
@@ -257,7 +394,7 @@ QString AiChatDock::buildContext() const
 QString AiChatDock::systemPrompt() const
 {
     QString prompt;
-    if (!agentMode->isChecked()) {
+    if (!isAgentMode()) {
         prompt = CHAT_PROMPT;
     }
     else {
@@ -307,8 +444,10 @@ void AiChatDock::addUserMessage(const QString &question)
     }
 
     QString content = question;
-    if (includeContext->isChecked())
+    if (contextEnabled)
         content = buildContext() + question;
+    contextEnabled = true;
+    updateContextChip();
 
     if (chatId.isEmpty())
         chatId = QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss-zzz");
@@ -464,7 +603,7 @@ void AiChatDock::sendRequest()
         body["max_tokens"] = 16000;
         body["system"] = QJsonArray{QJsonObject{{"type", "text"}, {"text", systemPrompt()}, {"cache_control", QJsonObject{{"type", "ephemeral"}}}}};
         body["messages"] = anthropicMessages();
-        if (agentMode->isChecked()) {
+        if (isAgentMode()) {
             QJsonArray defs;
             for (const auto &t : toolDefinitions) {
                 const QJsonObject o = t.toObject();
@@ -478,7 +617,7 @@ void AiChatDock::sendRequest()
     }
     else {
         body["messages"] = openAiMessages();
-        if (agentMode->isChecked()) {
+        if (isAgentMode()) {
             QJsonArray defs;
             for (const auto &t : toolDefinitions) {
                 const QJsonObject o = t.toObject();
@@ -515,7 +654,7 @@ void AiChatDock::handleStreamData()
         streamBuffer.remove(0, newline + 1);
         handleStreamLine(line);
     }
-    renderChat();
+    updateLive();
 }
 
 void AiChatDock::handleStreamLine(const QByteArray &line)
@@ -663,8 +802,10 @@ void AiChatDock::runToolCalls()
             result = {"The tool arguments were not valid JSON (the response may have been cut off). Try again with smaller steps.", tr("invalid arguments"), true};
         }
         else {
-            statusLabel->setText(tr("Running %1...").arg(name));
-            result = tools->execute(name, callInput, autoApprove->isChecked());
+            currentTool = name;
+            updateLive();
+            result = tools->execute(name, callInput, QSettings().value("AI/AutoApprove", false).toBool());
+            currentTool.clear();
         }
 
         history.append(QJsonObject{
@@ -718,12 +859,12 @@ void AiChatDock::newChat()
     renderChat();
 }
 
-void AiChatDock::linkClicked(const QUrl &url)
+void AiChatDock::openFile(const QString &path)
 {
-    if (url.scheme() == "restore")
-        restoreCheckpoint(url.path().toInt());
-    else
-        QDesktopServices::openUrl(url);
+    const QString root = tools->workspaceRoot();
+    const QString absolute = root.isEmpty() ? path : QDir(root).filePath(path);
+    if (QFileInfo(absolute).isFile())
+        window->openFile(absolute);
 }
 
 void AiChatDock::restoreCheckpoint(int turn)
@@ -743,8 +884,8 @@ void AiChatDock::restoreCheckpoint(int turn)
     }
 
     const auto answer = QMessageBox::question(this, tr("Restore Checkpoint"),
-        tr("Revert %n file(s) changed by the AI since this message and remove the conversation from this message on?\n\n"
-           "Effects of commands the AI ran (for example installed packages) are not undone.", "", files.size()));
+        tr("Revert %1 file(s) changed by the AI since this message and remove the conversation from this message on?\n\n"
+           "Effects of commands the AI ran (for example installed packages) are not undone.").arg(files.size()));
     if (answer != QMessageBox::Yes)
         return;
 
@@ -829,7 +970,6 @@ void AiChatDock::loadChat(const QString &filePath)
     for (const auto &value : std::as_const(history))
         nextTurn = qMax(nextTurn, value.toObject()["turn"].toInt() + 1);
     renderChat();
-    chatView->verticalScrollBar()->setValue(chatView->verticalScrollBar()->maximum());
 }
 
 void AiChatDock::showHistoryMenu()
@@ -865,115 +1005,47 @@ void AiChatDock::showHistoryMenu()
     menu.exec(historyButton->mapToGlobal(QPoint(0, historyButton->height())));
 }
 
-void AiChatDock::insertLastCodeBlock()
+void AiChatDock::insertCode(const QString &code)
 {
     ScintillaNext *editor = window->currentEditor();
     if (!editor)
         return;
-
-    for (int i = history.size() - 1; i >= 0; --i) {
-        const QJsonObject m = history.at(i).toObject();
-        if (m["role"].toString() != "assistant" || m["content"].toString().isEmpty())
-            continue;
-        const QString code = lastCodeBlock(m["content"].toString());
-        if (code.isEmpty())
-            break;
-        editor->replaceSel(code.toUtf8().constData());
-        editor->QWidget::setFocus();
-        return;
-    }
-    statusLabel->setText(tr("No code block in the last answer."));
+    editor->replaceSel(code.toUtf8().constData());
+    editor->QWidget::setFocus();
 }
 
 void AiChatDock::renderChat()
 {
     const bool busy = reply || runningTools;
-    QString md;
-    if (history.isEmpty() && !reply && lastError.isEmpty()) {
-        md = tr("### AI Assistant\n\n"
-                "**Agent mode** lets the AI explore your project, edit files (you approve each diff) and run commands. "
-                "Open your project with *File > Open Folder as Workspace* first.\n\n"
-                "In the editor: **Ctrl+I** edits the selection with AI, suggestions while typing are accepted with **Tab**, "
-                "**Ctrl+L** jumps here.\n\n"
-                "Use **Settings** to sign in with OpenRouter in your browser, or choose Claude, OpenAI or a local Ollama model.");
-    }
-    if (historyTrimmed)
-        md += "_" + tr("Older messages were removed to stay within the context limit.") + "_\n\n";
 
-    bool assistantHeader = false;
-    for (int i = 0; i < history.size(); ++i) {
-        const QJsonObject m = history.at(i).toObject();
-        const QString role = m["role"].toString();
-        if (role == "user") {
-            if (i > 0)
-                md += "---\n\n";
-            const QString text = m["display"].toString().isEmpty() ? m["content"].toString() : m["display"].toString();
-            md += "#### " + tr("You") + "\n\n" + text + "\n\n";
+    QMap<int, int> restorable;
+    for (auto it = checkpoints.cbegin(); it != checkpoints.cend(); ++it)
+        restorable.insert(it.key(), it.value().size());
 
-            const int turn = m["turn"].toInt();
-            if (!busy && checkpoints.contains(turn) && !checkpoints[turn].isEmpty()) {
-                md += QString("[↶ %1](restore:%2) — %3\n\n")
-                          .arg(tr("Restore checkpoint"))
-                          .arg(turn)
-                          .arg(tr("%n file(s) changed", "", checkpoints[turn].size()));
-            }
-            assistantHeader = false;
-        }
-        else if (role == "assistant") {
-            if (!assistantHeader) {
-                md += "#### " + tr("AI") + "\n\n";
-                assistantHeader = true;
-            }
-            if (!m["content"].toString().isEmpty())
-                md += m["content"].toString() + "\n\n";
-        }
-        else if (role == "tool") {
-            const QString label = m["label"].toString();
-            md += QString("> %1 **%2**%3 — %4%5\n\n")
-                      .arg(m["is_error"].toBool() ? "✗" : "✓",
-                           m["name"].toString(),
-                           label.isEmpty() ? QString() : " `" + label + "`",
-                           m["is_error"].toBool() ? "*" : "",
-                           m["summary"].toString() + (m["is_error"].toBool() ? "*" : ""));
-        }
-    }
+    chatView->setConversation(history, restorable, busy, historyTrimmed);
+    chatView->setError(lastError);
+    updateLive();
+    updateModelButton();
+    statusLabel->setText(usageText.section(" (", 0, 0));
+    statusLabel->setToolTip(usageText);
+}
 
-    if (reply) {
-        if (!assistantHeader)
-            md += "#### " + tr("AI") + "\n\n";
-        if (!pendingAnswer.isEmpty())
-            md += pendingAnswer + "\n\n";
-        for (const PendingToolCall &pending : std::as_const(pendingToolCalls))
-            md += QString("> … **%1**\n\n").arg(pending.name);
-        if (pendingAnswer.isEmpty() && pendingToolCalls.isEmpty())
-            md += "_" + tr("thinking...") + "_\n\n";
-    }
-    if (!lastError.isEmpty())
-        md += "**" + tr("Error") + ":** " + lastError + "\n";
+void AiChatDock::updateLive()
+{
+    QStringList tools;
+    for (const PendingToolCall &pending : std::as_const(pendingToolCalls))
+        tools.append(pending.name);
+    if (!currentTool.isEmpty())
+        tools.append(currentTool);
 
-    QScrollBar *bar = chatView->verticalScrollBar();
-    const bool atBottom = bar->value() >= bar->maximum() - 4;
-    chatView->setMarkdown(md);
-    if (atBottom)
-        bar->setValue(bar->maximum());
-
-    if (!busy) {
-        const AiClient::Provider p = AiClient::load();
-        QString status = p.model.isEmpty() ? tr("No model set") : p.model;
-        if (!usageText.isEmpty())
-            status += " · " + usageText;
-        statusLabel->setText(status);
-        statusLabel->setToolTip(status);
-    }
+    chatView->setLive(reply || runningTools, pendingAnswer, tools);
 }
 
 void AiChatDock::setBusy(bool busy)
 {
-    sendButton->setEnabled(!busy);
-    stopButton->setEnabled(busy);
-    insertButton->setEnabled(!busy);
-    clearButton->setEnabled(!busy);
+    sendButton->setText(busy ? "■" : "↑");
+    sendButton->setToolTip(busy ? tr("Stop") : tr("Send (Enter)"));
+    newChatButton->setEnabled(!busy);
     historyButton->setEnabled(!busy);
-    if (busy && !runningTools)
-        statusLabel->setText(tr("Generating..."));
+    modeCombo->setEnabled(!busy);
 }

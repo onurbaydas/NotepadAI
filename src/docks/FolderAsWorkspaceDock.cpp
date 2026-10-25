@@ -45,6 +45,8 @@ FolderAsWorkspaceDock::FolderAsWorkspaceDock(QWidget *parent) :
     ui->setupUi(this);
 
     ui->treeView->setModel(model);
+    ui->treeView->setHeaderHidden(true);
+    ui->treeView->setObjectName("workspaceTree");
 
     QMenu *menu = new QMenu(ui->toolButton);
     menu->addAction(ui->actionShowSize);
@@ -55,6 +57,7 @@ FolderAsWorkspaceDock::FolderAsWorkspaceDock(QWidget *parent) :
 
     ui->toolButton->setMenu(menu);
     ui->toolButton->setPopupMode(QToolButton::MenuButtonPopup);
+    ui->toolButton->hide();
 
     auto bindColumnVisibility = [this](QAction* action, int column) {
         ui->treeView->setColumnHidden(column, !action->isChecked());
@@ -123,6 +126,11 @@ void FolderAsWorkspaceDock::setRootPath(const QString &dir)
 
     const QModelIndex sourceIndex = model->setRootPath(dir);
     ui->treeView->setRootIndex(sourceIndex);
+}
+
+QMenu *FolderAsWorkspaceDock::optionsMenu() const
+{
+    return ui->toolButton->menu();
 }
 
 QString FolderAsWorkspaceDock::rootPath() const

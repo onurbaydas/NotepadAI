@@ -208,6 +208,8 @@ bool AiClient::showSettings(QWidget *parent)
     completionModel->setPlaceholderText(tr("Same as chat model"));
     QCheckBox *autocomplete = new QCheckBox(tr("Suggest code while typing (accept with Tab)"), &dialog);
     autocomplete->setChecked(settings.value("AI/Autocomplete", true).toBool());
+    QCheckBox *autoApprove = new QCheckBox(tr("Apply the agent's file changes without asking (commands always ask)"), &dialog);
+    autoApprove->setChecked(settings.value("AI/AutoApprove", false).toBool());
 
     QLabel *hint = new QLabel(tr("Ollama: choose OpenAI-compatible, URL http://localhost:11434/v1, model e.g. qwen2.5-coder. "
                                  "Agent mode needs a model that supports tool calling."), &dialog);
@@ -250,6 +252,7 @@ bool AiClient::showSettings(QWidget *parent)
     form->addRow(tr("Model:"), model);
     form->addRow(tr("Autocomplete model:"), completionModel);
     form->addRow(autocomplete);
+    form->addRow(autoApprove);
     form->addRow(hint);
 
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -267,6 +270,7 @@ bool AiClient::showSettings(QWidget *parent)
     settings.setValue("AI/Model", model->text().trimmed());
     settings.setValue("AI/CompletionModel", completionModel->text().trimmed());
     settings.setValue("AI/Autocomplete", autocomplete->isChecked());
+    settings.setValue("AI/AutoApprove", autoApprove->isChecked());
     return true;
 }
 

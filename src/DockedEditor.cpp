@@ -134,6 +134,12 @@ void DockedEditor::switchToEditor(const ScintillaNext *editor)
     }
     else {
         dockWidget->raise();
+
+        // Focus may be elsewhere (e.g. a dialog), so don't rely on the focus change to track the current editor
+        if (currentEditor != editor) {
+            currentEditor = const_cast<ScintillaNext *>(editor);
+            emit editorActivated(currentEditor);
+        }
     }
 }
 

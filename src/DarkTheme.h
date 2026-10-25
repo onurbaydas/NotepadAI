@@ -32,7 +32,7 @@ namespace DarkTheme
     // Qt palette and widget style
     void applyToApplication();
 
-    // Additions to the application style sheet
+    // Additions to the application style sheet (AI panels for both themes, dark overrides)
     QString styleSheet();
 
     // Convert the editor's current (light) styles; call after the language styles are set

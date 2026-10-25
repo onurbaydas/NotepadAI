@@ -25,6 +25,7 @@ class FolderAsWorkspaceDock;
 }
 
 class QFileSystemModel;
+class QMenu;
 
 class FolderAsWorkspaceDock : public QDockWidget
 {
@@ -36,6 +37,9 @@ public:
 
     void setRootPath(const QString &dir);
     QString rootPath() const;
+
+    // View options (columns, hidden files), shown from the dock's title bar
+    QMenu *optionsMenu() const;
 
 signals:
     void fileDoubleClicked(const QString &filePath);

@@ -17,6 +17,8 @@
 
 #include "AiAgentTools.h"
 
+#include "DarkTheme.h"
+
 #include "EditorManager.h"
 #include "FolderAsWorkspaceDock.h"
 #include "MainWindow.h"
@@ -260,7 +262,7 @@ AiAgentTools::Result AiAgentTools::listFiles(const QJsonObject &input)
 
     if (lines.isEmpty())
         return Result{"(empty)", tr("empty folder"), false};
-    return Result{lines.join('\n'), tr("%n entries", "", lines.size()), false};
+    return Result{lines.join('\n'), tr("%1 entries").arg(lines.size()), false};
 }
 
 AiAgentTools::Result AiAgentTools::readFile(const QJsonObject &input)
@@ -283,7 +285,7 @@ AiAgentTools::Result AiAgentTools::readFile(const QJsonObject &input)
     if (content.size() > MAX_READ_CHARS) {
         content = content.left(MAX_READ_CHARS) + "\n... (truncated, use start_line/end_line to read the rest)";
     }
-    return Result{header + content, tr("%n lines", "", end - start + 1), false};
+    return Result{header + content, tr("%1 lines").arg(end - start + 1), false};
 }
 
 AiAgentTools::Result AiAgentTools::search(const QJsonObject &input)
@@ -320,7 +322,7 @@ AiAgentTools::Result AiAgentTools::search(const QJsonObject &input)
 
     if (results.isEmpty())
         return Result{"No matches.", tr("no matches"), false};
-    return Result{results.join('\n'), tr("%n matches", "", results.size()), false};
+    return Result{results.join('\n'), tr("%1 matches").arg(results.size()), false};
 }
 
 AiAgentTools::Result AiAgentTools::editFile(const QJsonObject &input, bool autoApprove)
@@ -547,11 +549,11 @@ QString AiAgentTools::diffHtml(const QString &oldText, const QString &newText)
                 ops.push_back({' ', midA[i++]});
                 ++j;
             }
-            else if (j < m && (i == n || at(i, j + 1) >= at(i + 1, j))) {
-                ops.push_back({'+', midB[j++]});
+            else if (i < n && (j == m || at(i + 1, j) >= at(i, j + 1))) {
+                ops.push_back({'-', midA[i++]});
             }
             else {
-                ops.push_back({'-', midA[i++]});
+                ops.push_back({'+', midB[j++]});
             }
         }
     }
@@ -577,7 +579,11 @@ QString AiAgentTools::diffHtml(const QString &oldText, const QString &newText)
             visible[k] = true;
     }
 
-    QString html = QString("<p><span style=\"color: #1a7f37;\">+%1</span> &nbsp; <span style=\"color: #cf222e;\">-%2</span></p>")
+    const bool dark = DarkTheme::isEnabled();
+    const QString addedStyle = dark ? "background-color: #1f3d2b; color: #b8e6c4;" : "background-color: #ccffd8; color: #000000;";
+    const QString removedStyle = dark ? "background-color: #4a2125; color: #ffc9c9;" : "background-color: #ffd7d5; color: #000000;";
+
+    QString html = QString("<p><span style=\"color: #3fb950;\">+%1</span> &nbsp; <span style=\"color: #f85149;\">-%2</span></p>")
                        .arg(added).arg(removed);
     html += "<pre style=\"font-family: monospace;\">";
     bool skipped = false;
@@ -592,9 +598,9 @@ QString AiAgentTools::diffHtml(const QString &oldText, const QString &newText)
         }
         const QString line = ops[i].second.toHtmlEscaped();
         if (ops[i].first == '+')
-            html += QString("<span style=\"background-color: #ccffd8; color: #000000;\">+ %1</span>\n").arg(line);
+            html += QString("<span style=\"%1\">+ %2</span>\n").arg(addedStyle, line);
         else if (ops[i].first == '-')
-            html += QString("<span style=\"background-color: #ffd7d5; color: #000000;\">- %1</span>\n").arg(line);
+            html += QString("<span style=\"%1\">- %2</span>\n").arg(removedStyle, line);
         else
             html += QString("  %1\n").arg(line);
     }

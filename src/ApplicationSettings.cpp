@@ -41,7 +41,7 @@ ApplicationSettings::ApplicationSettings(QObject *parent)
 }
 
 CREATE_SETTING(Gui, ShowMenuBar, showMenuBar, bool, true)
-CREATE_SETTING(Gui, ShowToolBar, showToolBar, bool, true)
+CREATE_SETTING(Gui, ShowToolBar, showToolBar, bool, false)
 CREATE_SETTING(Gui, ShowTabBar, showTabBar, bool, true)
 CREATE_SETTING(Gui, ShowStatusBar, showStatusBar, bool, true)
 CREATE_SETTING(Gui, CenterSearchDialog, centerSearchDialog, bool, true)

@@ -36,3 +36,9 @@ Always rebuild after a change and fix every compiler error before finishing. Hea
 
 - Match the existing Qt style: `tr()` for user-visible strings, signals/slots via `connect` with member pointers, new files carry the GPL header.
 - Keep commits small, one feature per commit.
+
+## UI and translations
+
+- `src/docks/AiChatView.*` renders the conversation as widgets (user bubbles, Markdown text, code blocks with Copy/Insert, one-line tool steps, empty state). `AiChatDock` owns the logic, title bar and composer.
+- Panel colours live in `DarkTheme::styleSheet()` (both themes) and `AiChatView::refreshStyle()`.
+- User-visible strings are English in `tr()`; Turkish translations are in `i18n/NotepadNext_tr.ts` (add new strings there; avoid `%n` plurals, use `%1` with `.arg()`). Translation files keep the `NotepadNext_` prefix.
